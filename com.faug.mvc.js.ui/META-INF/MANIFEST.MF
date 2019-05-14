@@ -1,0 +1,32 @@
+Manifest-Version: 1.0
+Automatic-Module-Name: com.faug.mvc.js.ui
+Bundle-ManifestVersion: 2
+Bundle-Name: com.faug.mvc.js.ui
+Bundle-Vendor: My Company
+Bundle-Version: 1.0.0.qualifier
+Bundle-SymbolicName: com.faug.mvc.js.ui; singleton:=true
+Bundle-ActivationPolicy: lazy
+Require-Bundle: com.faug.mvc.js,
+ com.faug.mvc.js.ide,
+ org.eclipse.xtext.ui,
+ org.eclipse.xtext.ui.shared,
+ org.eclipse.xtext.ui.codetemplates.ui,
+ org.eclipse.ui.editors;bundle-version="3.5.0",
+ org.eclipse.ui.ide;bundle-version="3.5.0",
+ org.eclipse.ui,
+ org.eclipse.compare,
+ org.eclipse.xtext.builder,
+ org.eclipse.xtext.xbase.lib;bundle-version="2.14.0",org.eclipse.xtend.lib;bundle-version="2.14.0";resolution:=optional
+Import-Package: org.apache.log4j
+Bundle-RequiredExecutionEnvironment: JavaSE-1.8
+Export-Package: com.faug.mvc.js.ui.contentassist,
+ com.faug.mvc.js.ui.internal,
+ com.faug.mvc.js.ui.quickfix
+Bundle-Activator: com.faug.mvc.js.ui.internal.JsActivator
+Bundle-ClassPath: .,
+ json-path-2.4.0.jar,
+ json-smart-2.3.jar,
+ asm-1.0.2.jar,
+ slf4j-api-1.7.26.jar,
+ slf4j-simple-1.7.26.jar,
+ rhino-1.7.9.jar

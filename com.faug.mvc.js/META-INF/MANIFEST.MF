@@ -1,0 +1,31 @@
+Manifest-Version: 1.0
+Automatic-Module-Name: com.faug.mvc.js
+Bundle-ManifestVersion: 2
+Bundle-Name: com.faug.mvc.js
+Bundle-Vendor: My Company
+Bundle-Version: 1.0.0.qualifier
+Bundle-SymbolicName: com.faug.mvc.js; singleton:=true
+Bundle-ActivationPolicy: lazy
+Require-Bundle: org.eclipse.xtext,
+ org.eclipse.xtext.xbase,
+ org.eclipse.equinox.common;bundle-version="3.5.0",
+ org.eclipse.emf.ecore,
+ org.eclipse.xtext.xbase.lib;bundle-version="2.14.0",
+ org.eclipse.xtext.util,
+ org.eclipse.emf.common,
+ org.eclipse.xtend.lib;bundle-version="2.14.0",
+ org.antlr.runtime;bundle-version="[3.2.0,3.2.1)"
+Bundle-RequiredExecutionEnvironment: JavaSE-1.8
+Bundle-ClassPath: .
+Export-Package: com.faug.mvc.js.json.util,
+ com.faug.mvc.js.parser.antlr,
+ com.faug.mvc.js.serializer,
+ com.faug.mvc.js.scoping,
+ com.faug.mvc.js.services,
+ com.faug.mvc.js.generator,
+ com.faug.mvc.js,
+ com.faug.mvc.js.json,
+ com.faug.mvc.js.parser.antlr.internal,
+ com.faug.mvc.js.json.impl,
+ com.faug.mvc.js.validation
+Import-Package: org.apache.log4j

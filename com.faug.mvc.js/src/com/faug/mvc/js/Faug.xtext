@@ -1,0 +1,41 @@
+grammar com.faug.mvc.js.Faug with org.eclipse.xtext.common.Terminals
+
+generate json "http://www.json.org/"
+
+JSONValue :
+    value=JSONObject |
+    value=JSONArray |
+    value=JSONString |
+    value=JSONNumber |
+    value=JSONBoolean |
+    value=JSONNull;
+
+JSONObject:
+    '{' {JSONObject} ( pairs+=JSONPair (',' pairs+=JSONPair )* )? '}';
+
+JSONPair:
+    key=JSONString ':' value=JSONValue;
+    
+JSONArray :
+    '[' {JSONArray} ( values+=JSONValue (',' values+=JSONValue )* )? ']';
+
+JSONString:
+    {JSONString} value=STRING;
+
+JSONNumber:
+    {JSONNumber} value=NUMBER;
+
+JSONBoolean:
+    {JSONBoolean} value=BOOLEAN;
+
+JSONNull:
+    {JSONNull} value=NULL;
+
+terminal NUMBER:
+    '-'? '0'|('1'.. '9' ('0'..'9')* ) ('.' ('0'..'9')+ )? ('e'|'E' ('-'|'+')? ('0'..'9')+ )?;
+
+terminal BOOLEAN:
+    'true' | 'false';
+
+terminal NULL:
+    'null';
