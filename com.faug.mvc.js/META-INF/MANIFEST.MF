@@ -2,7 +2,7 @@ Manifest-Version: 1.0
 Automatic-Module-Name: com.faug.mvc.js
 Bundle-ManifestVersion: 2
 Bundle-Name: com.faug.mvc.js
-Bundle-Vendor: My Company
+Bundle-Vendor: Sumeet Chhetri
 Bundle-Version: 1.0.0.qualifier
 Bundle-SymbolicName: com.faug.mvc.js; singleton:=true
 Bundle-ActivationPolicy: lazy

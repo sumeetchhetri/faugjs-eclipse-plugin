@@ -1,0 +1,778 @@
+{
+	"definitions": {
+		"customdetdef": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"class": {
+					"type": "string"
+				},
+				"attrs": {
+					"type": "object"
+				},
+				"style": {
+					"type": "string"
+				},
+				"classpos": {
+					"type": "string"
+				},
+				"attrpos": {
+					"type": "string"
+				},
+				"stylepos": {
+					"type": "string"
+				},
+				"text": {
+					"type": "string"
+				},
+				"html": {
+					"type": "string"
+				},
+				"properties": {
+					"type": "object"
+				},
+				"el": {
+					"type": "string"
+				},
+				"parent": {
+					"$ref": "#/definitions/customdef"
+				},
+				"container": {
+					"$ref": "#/definitions/customdef"
+				}
+			}
+		},
+		"customdef": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"custom": {
+					"$ref": "#/definitions/customdetdef"
+				},
+				"html": {
+					"type": "string"
+				}
+			}
+		},
+		"crudopref": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"meth": {
+					"type": "string"
+				},
+				"url": {
+					"type": "string"
+				},
+				"contentType": {
+					"type": "string"
+				},
+				"headers": {
+					"type": "object"
+				},
+				"exResCd": {
+					"type": "number"
+				},
+				"template": {
+					"type": "string"
+				},
+				"showdropdownmenu": {
+					"type": "boolean"
+				},
+				"dropdownmenuItem": {
+					"type": "object"
+				},
+				"vars": {
+					"type": "object"
+				},
+				"callbacks": {
+					"$ref": "#/definitions/callbackref"
+				},
+				"content": {
+					"type": "string"
+				}
+			}
+		},
+		"drawref": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"schemaName": {
+					"type": "string"
+				},
+				"show": {
+					"type": "boolean"
+				},
+				"type": {
+					"type": "string"
+				}
+			}
+		},
+		"attrvalassigndef": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"fromData": {
+					"type": "string"
+				},
+				"fromVar": {
+					"type": "string"
+				},
+				"fromRoute": {
+					"type": "string"
+				},
+				"to": {
+					"type": "string"
+				}
+			}
+		},
+		"conddef": {
+			"anyOf": [{
+					"type": "string"
+				},
+				{
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				},
+				{
+					"type": "array",
+					"items": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					}
+				}
+			]
+		},
+		"eventdef": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"jqselector": {
+					"type": "string"
+				},
+				"event": {
+					"type": "string"
+				},
+				"eleid": {
+					"type": "string"
+				},
+				"func": {
+					"type": "string"
+				},
+				"outfunc": {
+					"type": "string"
+				},
+				"load": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"cond": {
+							"$ref": "#/definitions/conddef"
+						},
+						"selector": {
+							"type": "string"
+						},
+						"template": {
+							"type": "string"
+						},
+						"checkPresence": {
+							"type": "boolean"
+						},
+						"store_var": {
+							"type": "object",
+							"additionalProperties": false,
+							"properties": {
+								"key": {
+									"type": "string"
+								},
+								"name": {
+									"type": "string"
+								}
+							}
+						}
+					}
+				},
+				"cond": {
+					"$ref": "#/definitions/conddef"
+				},
+				"crudop": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"schemaName": {
+							"type": "string"
+						},
+						"op": {
+							"type": "string"
+						},
+						"viewerId": {
+							"type": "string"
+						},
+						"type": {
+							"type": "string"
+						},
+						"vars": {
+							"type": "object"
+						}
+					}
+				},
+				"showhide": {
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"cond": {
+							"$ref": "#/definitions/conddef"
+						},
+						"showclass": {
+							"type": "string"
+						},
+						"hideclass": {
+							"type": "string"
+						},
+						"show": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						},
+						"hide": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
+					}
+				},
+				"routeTo": {
+					"type": "string"
+				},
+				"preRouteTo": {
+					"type": "string"
+				},
+				"draw": {
+					"anyOf": [{
+							"$ref": "#/definitions/drawref"
+						},
+						{
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/drawref"
+							}
+						}
+					]
+				},
+				"every": {
+					"description": "Refresh this route every x ms, apply for all routes defined in forRoute",
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"duartion": {
+							"type": "number"
+						},
+						"forRoute": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							}
+						}
+					}
+				},
+				"vars": {
+					"type": "object"
+				},
+				"varAssign": {
+					"type": "object"
+				}
+			}
+		},
+		"callbackdetref": {
+			"anyOf": [{
+				"type": "string"
+			}, {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"func": {
+						"type": "string"
+					},
+					"controlEvents": {
+						"type": "array",
+						"items": {
+							"$ref": "#/definitions/eventdef"
+						}
+					}
+				}
+			}]
+		},
+		"callbackref": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"onOp": {
+					"$ref": "#/definitions/callbackdetref"
+				},
+				"beforeOp": {
+					"$ref": "#/definitions/callbackdetref"
+				},
+				"onValidateOp": {
+					"$ref": "#/definitions/callbackdetref"
+				},
+				"serializeContent": {
+					"$ref": "#/definitions/callbackdetref"
+				},
+				"afterOp": {
+					"$ref": "#/definitions/callbackdetref"
+				},
+				"failure": {
+					"$ref": "#/definitions/callbackdetref"
+				},
+				"beforeDraw": {
+					"$ref": "#/definitions/callbackdetref"
+				},
+				"afterDraw": {
+					"$ref": "#/definitions/callbackdetref"
+				},
+				"visibilityEventCallback": {
+					"type": "string"
+				},
+				"onReset": {
+					"$ref": "#/definitions/callbackdetref"
+				},
+				"afterLoad": {
+					"$ref": "#/definitions/callbackdetref"
+				},
+				"drawViewerColumns": {
+					"$ref": "#/definitions/callbackdetref"
+				},
+				"onCancelDialog": {
+					"$ref": "#/definitions/callbackdetref"
+				},
+				"addItem": {
+					"$ref": "#/definitions/callbackdetref"
+				},
+				"removeItem": {
+					"$ref": "#/definitions/callbackdetref"
+				},
+				"hanldeUpdateProgress": {
+					"$ref": "#/definitions/callbackdetref"
+				},
+				"modelChanged": {
+					"$ref": "#/definitions/callbackdetref"
+				},
+				"isAddRemove": {
+					"type": "string"
+				},
+				"transformElements": {
+					"$ref": "#/definitions/callbackdetref"
+				}
+			}
+		},
+		"propertyref": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"type": {
+					"type": "string"
+				},
+				"display": {
+					"type": "string"
+				},
+				"show": {
+					"type": "boolean"
+				},
+				"showlabel": {
+					"type": "boolean"
+				},
+				"showicon": {
+					"type": "boolean"
+				},
+				"addId": {
+					"type": "boolean"
+				},
+				"required": {
+					"type": "boolean"
+				},
+				"dateFormat": {
+					"type": "string"
+				},
+				"transient": {
+					"type": "boolean"
+				},
+				"showhelptext": {
+					"type": "boolean"
+				},
+				"isTemplate": {
+					"type": "boolean"
+				},
+				"container": {
+					"type": "boolean"
+				},
+				"ui": {
+					"type": "string"
+				},
+				"template": {
+					"type": "string"
+				},
+				"templateFile": {
+					"type": "string"
+				},
+				"optionTemplateFile": {
+					"type": "string"
+				},
+				"genericTemplateFile": {
+					"type": "string"
+				},
+				"genericOptionTemplateFile": {
+					"type": "string"
+				},
+				"posistioning": {
+					"type": "array"
+				},
+				"serializeValuePosition": {
+					"type": "string"
+				},
+				"serializeValueFunction": {
+					"type": "string"
+				},
+				"default": {
+					"type": "string"
+				},
+				"defaultIndex": {
+					"type": "number"
+				},
+				"multiple": {
+					"type": "boolean"
+				},
+				"vars": {
+					"type": "object"
+				},
+				"elementHtml": {
+					"type": "string"
+				},
+				"value": {
+					"type": "string"
+				},
+				"target": {
+					"type": "string"
+				},
+				"section": {
+					"type": "string"
+				},
+				"groupMarker": {
+					"type": "string"
+				},
+				"condition": {
+					"type": "array"
+				},
+				"edit": {
+					"type": "boolean"
+				},
+				"translate": {
+					"type": "boolean"
+				},
+				"decoratePicker": {
+					"type": "boolean"
+				},
+				"events": {
+					"type": "object"
+				},
+				"copyto": {
+					"type": "boolean"
+				},
+				"noevents": {
+					"type": "boolean"
+				},
+				"dateConfig": {
+					"type": "object"
+				},
+				"enum": {
+					"type": "array",
+					"items": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					}
+				},
+				"editMinimize": {
+					"type": "boolean"
+				},
+				"isSpan": {
+					"type": "boolean"
+				},
+				"nolabel": {
+					"type": "boolean"
+				},
+				"noaddbutton": {
+					"type": "boolean"
+				},
+				"norembutton": {
+					"type": "boolean"
+				},
+				"initialentries": {
+					"type": "number"
+				},
+				"validations": {
+					"type": "object",
+					"properties": {
+						"cond": {
+							"$ref": "#/definitions/conddef"
+						},
+						"errorselector": {
+							"type": "string"
+						}
+					}
+				},
+				"attrAssign": {
+					"anyOf": [{
+							"$ref": "#/definitions/attrvalassigndef"
+						},
+						{
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/attrvalassigndef"
+							}
+						}
+					]
+				},
+				"valueAssign": {
+					"anyOf": [{
+							"$ref": "#/definitions/attrvalassigndef"
+						},
+						{
+							"type": "array",
+							"items": {
+								"$ref": "#/definitions/attrvalassigndef"
+							}
+						}
+					]
+				},
+				"custom": {
+					"type": "object",
+					"properties": {
+						"customTemplate": {
+							"type": "string"
+						},
+						"icon": {
+							"$ref": "#/definitions/customdef"
+						},
+						"label": {
+							"$ref": "#/definitions/customdef"
+						},
+						"helpText": {
+							"$ref": "#/definitions/customdef"
+						},
+						"container": {
+							"$ref": "#/definitions/customdef"
+						},
+						"headerlb": {
+							"$ref": "#/definitions/customdef"
+						},
+						"addButton": {
+							"$ref": "#/definitions/customdef"
+						},
+						"remButton": {
+							"$ref": "#/definitions/customdef"
+						},
+						"header": {
+							"$ref": "#/definitions/customdef"
+						},
+						"minlabel": {
+							"$ref": "#/definitions/customdef"
+						},
+						"minmaxbutton": {
+							"$ref": "#/definitions/customdef"
+						},
+						"loadmore": {
+							"$ref": "#/definitions/customdef"
+						},
+						"opts": {
+							"type": "object"
+						}
+					}
+				},
+				"maxobjects": {
+					"type": "number"
+				},
+				"summaryTemplateFunc": {
+					"type": "string"
+				},
+				"summaryTemplate": {
+					"type": "string"
+				},
+				"summaryTemplateDynamic": {
+					"type": "boolean"
+				},
+				"properties": {
+					"patternProperties": {
+						"[a-zA-Z_]+": {
+							"$ref": "#/definitions/propertyref"
+						}
+					}
+				},
+				"callbacks": {
+					"$ref": "#/definitions/callbackref"
+				},
+				"items": {
+					"$ref": "#/definitions/propertyref"
+				}
+			}
+		}
+	},
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"additionalProperties": false,
+	"type": "object",
+	"title": "The FaugJs Schema Schema",
+	"required": [
+		"type",
+		"properties",
+		"details"
+	],
+	"properties": {
+		"additionalProperties": false,
+		"templatize": {
+			"type": "boolean",
+			"default": false,
+			"examples": [
+				true
+			]
+		},
+		"type": {
+			"type": "string",
+			"examples": [
+				"object"
+			]
+		},
+		"dynamicAspects": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": [
+					"cond",
+					"valueset"
+				],
+				"properties": {
+					"cond": {
+						"type": "array",
+						"items": {
+							"type": "string",
+							"examples": [
+								"|=|s:gvar@your_global_var"
+							]
+						}
+					},
+					"valueset": {
+						"type": "object"
+					}
+				}
+			}
+		},
+		"properties": {
+			"patternProperties": {
+				"[a-zA-Z_]+": {
+					"$ref": "#/definitions/propertyref"
+				}
+			}
+		},
+		"namedEvents": {
+			"type": "object"
+		},
+		"serializeTemplate": {
+			"type": "string"
+		},
+		"details": {
+			"type": "object",
+			"required": [
+				"name"
+			],
+			"properties": {
+				"name": {
+					"type": "string"
+				},
+				"label": {
+					"type": "string"
+				},
+				"labelEleId": {
+					"type": "string"
+				},
+				"form": {
+					"type": "object",
+					"required": [
+						"id"
+					],
+					"properties": {
+						"id": {
+							"type": "string"
+						},
+						"create": {
+							"type": "boolean",
+							"default": false,
+							"examples": [
+								true
+							]
+						},
+						"parentEleId": {
+							"type": "string"
+						},
+						"position": {
+							"type": "string",
+							"examples": [
+								"clear", "append", "prepend"
+							]
+						},
+						"showReset": {
+							"type": "boolean"
+						},
+						"isModal": {
+							"type": "boolean"
+						},
+						"noHtml5Validation": {
+							"type": "boolean"
+						},
+						"validateHiddenElements": {
+							"type": "boolean"
+						},
+						"custom": {
+							"type": "object",
+							"$ref": "#/definitions/customdetdef"
+						},
+						"submit": {
+							"type": "object",
+							"properties": {
+								"custom": {
+									"$ref": "#/definitions/customdetdef"
+								},
+								"label": {
+									"type": "string"
+								}
+							}
+						},
+						"callbacks": {
+							"$ref": "#/definitions/callbackref"
+						}
+					}
+				},
+				"callbacks": {
+					"type": "object",
+					"properties": {
+						"afterLoad": {
+							"$ref": "#/definitions/callbackdetref"
+						}
+					}
+				}
+			}
+		},
+		"crud": {
+			"patternProperties": {
+				"[a-zA-Z_]+": {
+					"$ref": "#/definitions/crudopref"
+				}
+			}
+		}
+	}
+}

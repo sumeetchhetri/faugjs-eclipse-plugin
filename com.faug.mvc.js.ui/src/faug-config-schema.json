@@ -1,0 +1,195 @@
+{
+	"definitions": {},
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"additionalProperties": false,
+	"type": "object",
+	"title": "The FaugJs Configuration Schema",
+	"required": [
+		"settings",
+		"modules",
+		"schemas",
+		"templates",
+		"router"
+	],
+	"properties": {
+		"validate": {
+			"type": "boolean"	
+		},
+		"dependencies": {
+			"type": "object",
+			"required": [],
+			"properties": {
+				"override": {
+					"type": "boolean"
+				},
+				"list": {
+					"type": "array",
+					"items": {
+						"type": "string"
+					}
+				}
+			}
+		},
+		"settings": {
+			"type": "object",
+			"required": ["extensionFile"],
+			"properties": {
+				"debugEnabled": {
+					"type": "boolean"
+				},
+				"crudcreatename": {
+					"type": [ "string", "null" ]
+				},
+				"crudreadname": {
+					"type": [ "string", "null" ]
+				},
+				"crudupdatename": {
+					"type": [ "string", "null" ]
+				},
+				"cruddeletename": {
+					"type": [ "string", "null" ]
+				},
+				"crudreadallname": {
+					"type": [ "string", "null" ]
+				},
+				"dateformat": {
+					"type": [ "string", "null" ]
+				},
+				"datetimeformat": {
+					"type": [ "string", "null" ]
+				},
+				"timeformat": {
+					"type": [ "string", "null" ]
+				},
+				"timestampformat": {
+					"type": [ "string", "null" ]
+				},
+				"honourLocale": {
+					"type": "boolean"
+				},
+				"freezeLoaderId": {
+					"type": [ "string", "null" ]
+				},
+				"freezeLoaderHtml": {
+					"type": [ "string", "null" ]
+				},
+				"compressedSchemas": {
+					"type": [ "string", "null" ]
+				},
+				"compressedTemplatizedSchemas": {
+					"type": [ "string", "null" ]
+				},
+				"initialLodaerScreen": {
+					"type": "boolean"
+				},
+				"numApiWebWorkers": {
+					"type": "number"
+				},
+				"schemaIntlEnabled": {
+					"type": "boolean"
+				},
+				"defaultLanguage": {
+					"type": [ "string", "null" ]
+				},
+				"defCurrency": {
+					"type": [ "string", "null" ]
+				},
+				"lazyLoad": {
+					"type": "boolean"
+				},
+				"extensionFile": {
+					"type": [ "string", "null" ]
+				},
+				"layerFile": {
+					"type": [ "string", "null" ]
+				},
+				"disableContextMenu": {
+					"type": "boolean"
+				},
+				"disableBackForwardButton": {
+					"type": "boolean"
+				},
+				"disableBackForwardButtonCompletely": {
+					"type": "boolean"
+				},
+				"generateCorrelationId": {
+					"type": [ "string", "null" ]
+				},
+				"enableRouteModules": {
+					"type": "boolean"
+				},
+				"compressedModuleFiles": {
+					"type": "boolean"
+				}
+			}
+		},
+		"globals": {
+			"type": "object",
+			"required": []
+		},
+		"configs": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"exModules": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"modules": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"schemas": {
+			"type": "object",
+			"required": []
+		},
+		"templates": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"router": {
+			"type": "object",
+			"required": [],
+			"properties": {
+				"defaultroute": {
+					"type": "string"
+				},
+				"aliases": {
+					"type": "object",
+					"required": []
+				},
+				"secure": {
+					"type": "boolean"
+				},
+				"routes": {
+					"type": "object",
+					"required": []
+				}
+			}
+		},
+		"globalEvents": {
+			"type": "object",
+			"required": []
+		},
+		"compressedSchemas": {
+			"type": [ "string", "null" ]
+		},
+		"compressedSchemaHtmlTemplates": {
+			"type": [ "string", "null" ]
+		},
+		"compressedScript": {
+			"type": "boolean"
+		},
+		"compressedStyle": {
+			"type": [ "string", "null" ]
+		}
+	}
+}
