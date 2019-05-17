@@ -90,6 +90,12 @@
 				},
 				"content": {
 					"type": "string"
+				},
+				"forTemplate": {
+					"type": "boolean"
+				},
+				"storeAs": {
+					"type": "string"
 				}
 			}
 		},
@@ -629,11 +635,13 @@
 	"title": "The FaugJs Schema Schema",
 	"required": [
 		"type",
-		"properties",
 		"details"
 	],
 	"properties": {
 		"additionalProperties": false,
+		"validate": {
+			"type": "boolean"
+		},
 		"templatize": {
 			"type": "boolean",
 			"default": false,
@@ -766,6 +774,9 @@
 					}
 				}
 			}
+		},
+		"defaultOp": {
+			"type": "string"
 		},
 		"crud": {
 			"patternProperties": {

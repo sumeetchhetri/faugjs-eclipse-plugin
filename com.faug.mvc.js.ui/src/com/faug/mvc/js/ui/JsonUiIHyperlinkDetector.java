@@ -1,10 +1,6 @@
 package com.faug.mvc.js.ui;
 
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 import org.eclipse.core.resources.IFile;
-import org.eclipse.core.resources.IResource;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.IDocument;
@@ -22,12 +18,14 @@ import org.eclipse.ui.texteditor.ITextEditor;
 import org.eclipse.xtext.ui.editor.model.IXtextDocument;
 
 import com.faug.mvc.js.ui.JsonUiIXtextEditorCallback.FaugjsConfigContext;
+import com.google.re2j.Matcher;
+import com.google.re2j.Pattern;
 
 public class JsonUiIHyperlinkDetector implements IHyperlinkDetector {
 
 	Pattern filePat = Pattern.compile("\"([^\"]+)\\.(json|js|html)\"");
 	Pattern opPat = Pattern.compile("\"op\"[\t ]*:[\t ]*\"([^\"]+)\"");
-	Pattern snPat = Pattern.compile("\"schemaName\"[\t ]*:[\t ]*\"([^\"]+)\"");
+	public static final Pattern snPat = Pattern.compile("\"schemaName\"[\t ]*:[\t ]*\"([^\"]+)\"");
 	Pattern vnPat = Pattern.compile("\"viewerId\"[\t ]*:[\t ]*\"([^\"]+)\"");
 	Pattern fnPat = Pattern.compile(
 			"\"(func|serializeValueFunction|afterOp|onValidateOp|beforeOp|failure)\"[\t ]*:[\t ]*\"([^\"]+)\"");
@@ -44,10 +42,10 @@ public class JsonUiIHyperlinkDetector implements IHyperlinkDetector {
 		IDocument document = textViewer.getDocument();
 
 		IXtextDocument xtextDocument = (IXtextDocument) document;
-		IFile file = xtextDocument.getAdapter(IFile.class);
-		IResource resource = xtextDocument.getAdapter(IResource.class);
+		IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
+		IFile file = window.getActivePage().getActiveEditor().getEditorInput().getAdapter(IFile.class);
 
-		FaugjsConfigContext cntxt = JsonUiIXtextEditorCallback.getObj(resource.getProject().getName());
+		FaugjsConfigContext cntxt = JsonUiIXtextEditorCallback.getObj(file.getProject().getName());
 
 		int offset = region.getOffset();
 		String candidate = null;

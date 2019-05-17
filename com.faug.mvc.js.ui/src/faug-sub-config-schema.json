@@ -1,0 +1,50 @@
+{
+	"definitions": {},
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"additionalProperties": false,
+	"type": "object",
+	"title": "The FaugJs Sub Configuration Schema",
+	"properties": {
+		"validate": {
+			"type": "boolean"	
+		},
+		"globals": {
+			"type": "object",
+			"required": []
+		},
+		"schemas": {
+			"type": "object",
+			"required": []
+		},
+		"templates": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"router": {
+			"type": "object",
+			"required": [],
+			"properties": {
+				"defaultroute": {
+					"type": "string"
+				},
+				"aliases": {
+					"type": "object",
+					"required": []
+				},
+				"secure": {
+					"type": "boolean"
+				},
+				"routes": {
+					"type": "object",
+					"required": []
+				}
+			}
+		},
+		"globalEvents": {
+			"type": "object",
+			"required": []
+		}
+	}
+}

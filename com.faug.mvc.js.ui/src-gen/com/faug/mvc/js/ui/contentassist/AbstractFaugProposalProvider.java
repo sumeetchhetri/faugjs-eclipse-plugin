@@ -3,12 +3,27 @@
  */
 package com.faug.mvc.js.ui.contentassist;
 
+import java.util.Set;
+
+import org.eclipse.core.resources.IFile;
 import org.eclipse.emf.ecore.EObject;
+import org.eclipse.jface.text.BadLocationException;
+import org.eclipse.jface.text.IRegion;
+import org.eclipse.jface.text.contentassist.ICompletionProposal;
+import org.eclipse.jface.viewers.StyledString;
 import org.eclipse.xtext.Assignment;
 import org.eclipse.xtext.RuleCall;
 import org.eclipse.xtext.common.ui.contentassist.TerminalsProposalProvider;
+import org.eclipse.xtext.ui.editor.contentassist.ConfigurableCompletionProposal;
 import org.eclipse.xtext.ui.editor.contentassist.ContentAssistContext;
 import org.eclipse.xtext.ui.editor.contentassist.ICompletionProposalAcceptor;
+
+import com.faug.mvc.js.json.impl.JSONPairImpl;
+import com.faug.mvc.js.ui.JsonUiIHyperlinkDetector;
+import com.faug.mvc.js.ui.JsonUiIXtextEditorCallback;
+import com.faug.mvc.js.ui.JsonUiIXtextEditorCallback.FaugjsConfigContext;
+import com.google.re2j.Matcher;
+import com.google.re2j.Pattern;
 
 /**
  * Represents a generated, default implementation of superclass {@link TerminalsProposalProvider}.
@@ -45,8 +60,147 @@ public abstract class AbstractFaugProposalProvider extends TerminalsProposalProv
 		completeRuleCall(((RuleCall)assignment.getTerminal()), context, acceptor);
 	}
 
+	Pattern fp = Pattern.compile("func|serializeValueFunction|afterOp|onValidateOp|beforeOp|failure");
 	public void complete_JSONValue(EObject model, RuleCall ruleCall, ContentAssistContext context, ICompletionProposalAcceptor acceptor) {
-		// subclasses may override
+		IFile file = context.getDocument().getAdapter(IFile.class);
+		try {
+			System.out.println(context.getDocument().getLineOfOffset(context.getOffset()));
+		} catch (BadLocationException e) {
+			e.printStackTrace();
+		}
+		FaugjsConfigContext fcntxt = JsonUiIXtextEditorCallback.getObj(file.getProject().getName());
+		if(fcntxt!=null) {
+			String key = null;
+			String value = context.getPrefix();
+			if(value.startsWith("\"")) {
+				value = value.substring(1);
+			}
+			if(model instanceof JSONPairImpl) {
+				key = ((JSONPairImpl)model).getKey().getValue();
+			}
+			String gval = null;
+			if(value.contains("gvar@")) {
+				gval = value.substring(value.indexOf("gvar@")+5);
+			}
+			if((key!=null && fp.matches(key) && value.length()>=3) || (value.startsWith("func:") && value.length()>=8)) {
+				String sv = value.startsWith("func:")?value.substring(5):value;
+				Set<String> matched = JsonUiIXtextEditorCallback.matchingFuncsOrGvars(sv, null, 1);
+				for (String m : matched) {
+					String at = value.startsWith("func:")?("func:"+m):m;
+					ICompletionProposal proposal = doCreateProposal("\""+at, new StyledString(m), null, getPriorityHelper()
+							.getDefaultPriority(), context);
+					if (proposal instanceof ConfigurableCompletionProposal) {
+						ConfigurableCompletionProposal configurable = (ConfigurableCompletionProposal) proposal;
+						//configurable.setSelectionStart(configurable.getReplacementOffset() + 1);
+						//configurable.setSelectionLength(m.length() - 2);
+						configurable.setAutoInsertable(false);
+						configurable.setSimpleLinkedMode(context.getViewer(), m.charAt(0), '\t');
+						
+					}
+					acceptor.accept(proposal);
+				}
+			} else if((key!=null && key.equals("fromVar") && value.length()>=3) || (value.endsWith("gvar@"+gval) && gval.length()>=3)
+					 || (value.startsWith("%%Fg.g(") && value.length()>=10)) {
+				String sv = value;
+				if(gval!=null) {
+					sv = gval;
+				} else if(sv.startsWith("%%Fg.g(")) {
+					sv = sv.substring(7);
+				}
+				Set<String> matched = JsonUiIXtextEditorCallback.matchingFuncsOrGvars(sv, null, 2);
+				for (String m : matched) {
+					String at = m;
+					if(gval!=null) {
+						at = value.substring(0, value.indexOf("gvar@")+5) + m;
+					} else if(value.startsWith("%%Fg.g(")) {
+						at = "%%Fg.g(" + m;
+					}
+					ICompletionProposal proposal = doCreateProposal("\""+at, new StyledString(m), null, getPriorityHelper()
+							.getDefaultPriority(), context);
+					if (proposal instanceof ConfigurableCompletionProposal) {
+						ConfigurableCompletionProposal configurable = (ConfigurableCompletionProposal) proposal;
+						//configurable.setSelectionStart(configurable.getReplacementOffset() + 1);
+						//configurable.setSelectionLength(m.length() - 2);
+						configurable.setAutoInsertable(false);
+						configurable.setSimpleLinkedMode(context.getViewer(), m.charAt(0), '\t');
+						
+					}
+					acceptor.accept(proposal);
+				}
+			} else if(key!=null && key.equals("schemaName")) {
+				Set<String> matched = fcntxt.matchinSchemaNames(value);
+				for (String m : matched) {
+					ICompletionProposal proposal = doCreateProposal("\""+m, new StyledString(m), null, getPriorityHelper()
+							.getDefaultPriority(), context);
+					if (proposal instanceof ConfigurableCompletionProposal) {
+						ConfigurableCompletionProposal configurable = (ConfigurableCompletionProposal) proposal;
+						//configurable.setSelectionStart(configurable.getReplacementOffset() + 1);
+						//configurable.setSelectionLength(m.length() - 2);
+						configurable.setAutoInsertable(false);
+						configurable.setSimpleLinkedMode(context.getViewer(), m.charAt(0), '\t');
+						
+					}
+					acceptor.accept(proposal);
+				}
+			} else if(key!=null && (key.equals("target") || key.equals("viewerId") || key.equals("op"))) {
+				int type = key.equals("target")?3:(key.equals("viewerId")?4:5);
+				String schemaName  = fcntxt.lookupSchemaName(file);
+				int l = 0;
+				try {
+					l = context.getDocument().getLineOfOffset(context.getOffset());
+					for(int i=l-2;i<l+2;++i) {
+						try {
+							IRegion re = context.getDocument().getLineInformation(i);
+							String line = context.getDocument().get(re.getOffset(), re.getLength());
+							Matcher m = JsonUiIHyperlinkDetector.snPat.matcher(line);
+							if(m.find()) {
+								schemaName = m.group(1);
+								break;
+							}
+						} catch (Exception e) {
+							// TODO: handle exception
+						}
+					}
+				} catch (BadLocationException e) {
+				}
+				if(schemaName==null)return;
+				if(!JsonUiIXtextEditorCallback.isSchemaParsed(schemaName, type)) {
+					final String fv = value;
+					final String fs = schemaName;
+					fcntxt.parseSchema(schemaName, file).thenAcceptAsync(obj -> {
+						Set<String> matched = JsonUiIXtextEditorCallback.matchingFuncsOrGvars(fv, fs, type);
+						for (String m : matched) {
+							ICompletionProposal proposal = doCreateProposal("\""+m, new StyledString(m), null, getPriorityHelper()
+									.getDefaultPriority(), context);
+							if (proposal instanceof ConfigurableCompletionProposal) {
+								ConfigurableCompletionProposal configurable = (ConfigurableCompletionProposal) proposal;
+								//configurable.setSelectionStart(configurable.getReplacementOffset() + 1);
+								//configurable.setSelectionLength(m.length() - 2);
+								configurable.setAutoInsertable(false);
+								configurable.setSimpleLinkedMode(context.getViewer(), m.charAt(0), '\t');
+								
+							}
+							acceptor.accept(proposal);
+						}
+					});
+				} else {
+					Set<String> matched = JsonUiIXtextEditorCallback.matchingFuncsOrGvars(value, schemaName, type);
+					for (String m : matched) {
+						ICompletionProposal proposal = doCreateProposal("\""+m, new StyledString(m), null, getPriorityHelper()
+								.getDefaultPriority(), context);
+						if (proposal instanceof ConfigurableCompletionProposal) {
+							ConfigurableCompletionProposal configurable = (ConfigurableCompletionProposal) proposal;
+							//configurable.setSelectionStart(configurable.getReplacementOffset() + 1);
+							//configurable.setSelectionLength(m.length() - 2);
+							configurable.setAutoInsertable(false);
+							configurable.setSimpleLinkedMode(context.getViewer(), m.charAt(0), '\t');
+							
+						}
+						acceptor.accept(proposal);
+					}
+				}
+			}
+		}
 	}
 	public void complete_JSONObject(EObject model, RuleCall ruleCall, ContentAssistContext context, ICompletionProposalAcceptor acceptor) {
 		// subclasses may override
