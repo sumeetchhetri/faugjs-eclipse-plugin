@@ -3,51 +3,208 @@
  */
 package com.faug.mvc.js.ui.internal;
 
-import com.faug.mvc.js.FaugRuntimeModule;
-import com.faug.mvc.js.ui.FaugUiModule;
-import com.google.common.collect.Maps;
-import com.google.inject.Guice;
-import com.google.inject.Injector;
+import static io.undertow.Handlers.resource;
+
+import java.io.BufferedWriter;
+import java.io.FileInputStream;
+import java.io.FileWriter;
+import java.nio.file.Paths;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+
 import org.apache.log4j.Logger;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.eclipse.xtext.ui.shared.SharedStateModule;
 import org.eclipse.xtext.util.Modules2;
 import org.osgi.framework.BundleContext;
 
+import com.faug.mvc.js.FaugRuntimeModule;
+import com.faug.mvc.js.ui.FaugUiModule;
+import com.faug.mvc.js.ui.JsonUiIXtextEditorCallback;
+import com.google.common.collect.Maps;
+import com.google.inject.Guice;
+import com.google.inject.Injector;
+
+import io.undertow.Handlers;
+import io.undertow.Undertow;
+import io.undertow.server.HttpHandler;
+import io.undertow.server.HttpServerExchange;
+import io.undertow.server.handlers.resource.PathResourceManager;
+import io.undertow.util.FileUtils;
+import io.undertow.util.Headers;
+
 /**
  * This class was generated. Customizations should only happen in a newly
- * introduced subclass. 
+ * introduced subclass.
  */
 public class JsActivator extends AbstractUIPlugin {
 
 	public static final String PLUGIN_ID = "com.faug.mvc.js.ui";
 	public static final String COM_FAUG_MVC_JS_FAUG = "com.faug.mvc.js.Faug";
-	
+	public static String rootProjectPath = null;
 	private static final Logger logger = Logger.getLogger(JsActivator.class);
-	
+
 	private static JsActivator INSTANCE;
+
+	private Map<String, Injector> injectors = Collections
+			.synchronizedMap(Maps.<String, Injector>newHashMapWithExpectedSize(1));
+
+	private static Thread server = null;
+	private static Undertow us = null;
+
+	static class AceApiPushHandler implements HttpHandler {
+		@Override
+		public void handleRequest(HttpServerExchange exchange) throws Exception {
+			if (exchange.isInIoThread()) {
+		      exchange.dispatch(this);
+		      return;
+		    }
+			String action = Optional.ofNullable(exchange.getQueryParameters().get("action")).map(Deque::getFirst).orElse("save");
+			switch (action) {
+			case "save":
+				String file = Optional.ofNullable(exchange.getQueryParameters().get("file")).map(Deque::getFirst).orElse(null);
+				exchange.startBlocking();
+				String contents = FileUtils.readFile(exchange.getInputStream());
+				if(file!=null && contents!=null) {
+					BufferedWriter bw = new BufferedWriter(new FileWriter(file));
+					bw.write(contents);
+					bw.close();
+					exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, "application/json");
+					exchange.getResponseSender().send("{\"status\": true}");
+					return;
+				}
+				exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, "application/json");
+				exchange.getResponseSender().send("{\"status\": false, \"error\": \"File not found\"}");
+				break;
+			default:
+				break;
+			}
+		}
+	}
 	
-	private Map<String, Injector> injectors = Collections.synchronizedMap(Maps.<String, Injector> newHashMapWithExpectedSize(1));
-	
+	static class AceApiPullHandler implements HttpHandler {
+		@Override
+		public void handleRequest(HttpServerExchange exchange) throws Exception {
+			String action = Optional.ofNullable(exchange.getQueryParameters().get("action")).map(Deque::getFirst).orElse("fetch");
+			switch (action) {
+			case "fetch":
+				String file = Optional.ofNullable(exchange.getQueryParameters().get("file")).map(Deque::getFirst).orElse(null);
+				if(file!=null) {
+					try {
+						String contents = FileUtils.readFile(new FileInputStream(file));
+						if(file.endsWith(".html")) {
+							exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, "text/html");
+							exchange.getResponseSender().send(contents);
+							return;
+						} else if(file.endsWith(".js")) {
+							exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, "application/javascript");
+							exchange.getResponseSender().send(contents);
+							return;
+						}
+					} catch (Exception e) {
+						// TODO: handle exception
+					}
+				}
+				exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, "application/json");
+				exchange.getResponseSender().send("{\"status\": false, \"error\": \"File not found\"}");
+				break;
+			case "complete-func":
+				String currfile = Optional.ofNullable(exchange.getQueryParameters().get("file")).map(Deque::getFirst).orElse(null);
+				currfile = currfile.substring(rootProjectPath.length());
+				String text = Optional.ofNullable(exchange.getQueryParameters().get("text")).map(Deque::getFirst).orElse(null);
+				String text1 = Optional.ofNullable(exchange.getQueryParameters().get("text1")).map(Deque::getFirst).orElse(null);
+				if(text!=null) {
+					Set<String> matched = JsonUiIXtextEditorCallback.matchingFuncsOrGvars(text, text1, 1, currfile);
+					StringBuilder sb = new StringBuilder();
+					sb.append("[");
+					for (String s : matched) {
+						sb.append("\"");
+						sb.append(s);
+						sb.append("\"");
+						sb.append(",");
+					}
+					if(sb.charAt(sb.length()-1)==',') {
+						sb.deleteCharAt(sb.length()-1);
+					}
+					sb.append("]");
+					exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, "application/json");
+					exchange.getResponseSender().send(sb.toString());
+					return;
+				}
+				exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, "application/json");
+				exchange.getResponseSender().send("[]");
+				break;
+			case "complete-gvar":
+				currfile = Optional.ofNullable(exchange.getQueryParameters().get("file")).map(Deque::getFirst).orElse(null);
+				currfile = currfile.substring(rootProjectPath.length());
+				String gvar = Optional.ofNullable(exchange.getQueryParameters().get("text")).map(Deque::getFirst).orElse(null);
+				if(gvar!=null) {
+					Set<String> matched = JsonUiIXtextEditorCallback.matchingFuncsOrGvars(gvar, null, 2, currfile);
+					StringBuilder sb = new StringBuilder();
+					sb.append("[");
+					for (String s : matched) {
+						sb.append("\"");
+						sb.append(s);
+						sb.append("\"");
+						sb.append(",");
+					}
+					if(sb.charAt(sb.length()-1)==',') {
+						sb.deleteCharAt(sb.length()-1);
+					}
+					sb.append("]");
+					exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, "application/json");
+					exchange.getResponseSender().send(sb.toString());
+					return;
+				}
+				exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, "application/json");
+				exchange.getResponseSender().send("[]");
+				break;
+			default:
+				break;
+			}
+		}
+	}
+
 	@Override
 	public void start(BundleContext context) throws Exception {
 		super.start(context);
 		INSTANCE = this;
+
+		us = Undertow.builder().addHttpListener(23900, "localhost").setHandler(Handlers.path()
+				.addPrefixPath("/push", Handlers.routing().post("/{action}", new AceApiPushHandler()))
+				.addPrefixPath("/pull", Handlers.routing().get("/{action}", new AceApiPullHandler()))
+				.addPrefixPath("/static/", resource(new PathResourceManager(Paths.get("/Users/sumeetc/Projects/GitHub/ace/"), 100)).setDirectoryListingEnabled(false)))
+				.build();
+		server = new Thread(new Runnable() {
+			@Override
+			public void run() {
+				try {
+					System.out.println("Started ace server");
+					us.start();
+				} catch (Exception e) {
+				}
+			}
+		});
+		server.start();
 	}
-	
+
 	@Override
 	public void stop(BundleContext context) throws Exception {
 		injectors.clear();
 		INSTANCE = null;
 		super.stop(context);
+		us.stop();
+		server.interrupt();
+		System.out.println("Stopped ace server");
 	}
-	
+
 	public static JsActivator getInstance() {
 		return INSTANCE;
 	}
-	
+
 	public Injector getInjector(String language) {
 		synchronized (injectors) {
 			Injector injector = injectors.get(language);
@@ -57,7 +214,7 @@ public class JsActivator extends AbstractUIPlugin {
 			return injector;
 		}
 	}
-	
+
 	protected Injector createInjector(String language) {
 		try {
 			com.google.inject.Module runtimeModule = getRuntimeModule(language);
@@ -71,24 +228,23 @@ public class JsActivator extends AbstractUIPlugin {
 			throw new RuntimeException("Failed to create injector for " + language, e);
 		}
 	}
-	
+
 	protected com.google.inject.Module getRuntimeModule(String grammar) {
 		if (COM_FAUG_MVC_JS_FAUG.equals(grammar)) {
 			return new FaugRuntimeModule();
 		}
 		throw new IllegalArgumentException(grammar);
 	}
-	
+
 	protected com.google.inject.Module getUiModule(String grammar) {
 		if (COM_FAUG_MVC_JS_FAUG.equals(grammar)) {
 			return new FaugUiModule(this);
 		}
 		throw new IllegalArgumentException(grammar);
 	}
-	
+
 	protected com.google.inject.Module getSharedStateModule() {
 		return new SharedStateModule();
 	}
-	
-	
+
 }

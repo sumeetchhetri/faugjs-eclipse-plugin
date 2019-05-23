@@ -7,7 +7,7 @@
 			class="com.faug.mvc.js.ui.FaugExecutableExtensionFactory:org.eclipse.xtext.ui.editor.XtextEditor"
 			contributorClass="org.eclipse.ui.editors.text.TextEditorActionContributor"
 			default="true"
-			extensions="json"
+			extensions="json,js,html"
 			id="com.faug.mvc.js.Faug"
 			name="Faug Editor">
 		</editor>
@@ -211,7 +211,7 @@
 		<content-type
 			base-type="org.eclipse.core.runtime.text"
 			file-names="fjs-config.json"
-			file-extensions="json"
+			file-extensions="json,js,html"
 			id="com.faug.mvc.js.Faug.contenttype"
 			name="Json File"
 			priority="normal">
@@ -415,7 +415,7 @@
 	<extension point="org.eclipse.compare.contentViewers">
 		<viewer id="com.faug.mvc.js.Faug.compare.contentViewers"
 			class="com.faug.mvc.js.ui.FaugExecutableExtensionFactory:org.eclipse.xtext.ui.compare.InjectableViewerCreator"
-			extensions="json">
+			extensions="json,js,html">
 		</viewer>
 		<contentTypeBinding
 			contentTypeId="com.faug.mvc.js.Faug.contenttype"
@@ -424,7 +424,7 @@
 	<extension point="org.eclipse.compare.contentMergeViewers">
 		<viewer id="com.faug.mvc.js.Faug.compare.contentMergeViewers"
 			class="com.faug.mvc.js.ui.FaugExecutableExtensionFactory:org.eclipse.xtext.ui.compare.InjectableViewerCreator"
-			extensions="json" label="Faug Compare">
+			extensions="json,js,html" label="Faug Compare">
 		</viewer>
 		<contentTypeBinding
 			contentTypeId="com.faug.mvc.js.Faug.contenttype"
@@ -433,7 +433,7 @@
 	<extension point="org.eclipse.ui.editors.documentProviders">
 		<provider id="com.faug.mvc.js.Faug.editors.documentProviders"
 			class="com.faug.mvc.js.ui.FaugExecutableExtensionFactory:org.eclipse.xtext.ui.editor.model.XtextDocumentProvider"
-			extensions="json">
+			extensions="json,js,html">
 		</provider>
 	</extension>
 	<extension point="org.eclipse.team.core.fileTypes">

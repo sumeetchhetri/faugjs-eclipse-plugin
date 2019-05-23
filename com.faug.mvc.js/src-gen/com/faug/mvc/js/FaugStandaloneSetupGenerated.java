@@ -38,5 +38,11 @@ public class FaugStandaloneSetupGenerated implements ISetup {
 		
 		Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("json", resourceFactory);
 		IResourceServiceProvider.Registry.INSTANCE.getExtensionToFactoryMap().put("json", serviceProvider);
+		
+		Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("js", resourceFactory);
+		IResourceServiceProvider.Registry.INSTANCE.getExtensionToFactoryMap().put("js", serviceProvider);
+		
+		Resource.Factory.Registry.INSTANCE.getExtensionToFactoryMap().put("html", resourceFactory);
+		IResourceServiceProvider.Registry.INSTANCE.getExtensionToFactoryMap().put("html", serviceProvider);
 	}
 }

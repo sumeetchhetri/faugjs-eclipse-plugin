@@ -63,11 +63,6 @@ public abstract class AbstractFaugProposalProvider extends TerminalsProposalProv
 	Pattern fp = Pattern.compile("func|serializeValueFunction|afterOp|onValidateOp|beforeOp|failure");
 	public void complete_JSONValue(EObject model, RuleCall ruleCall, ContentAssistContext context, ICompletionProposalAcceptor acceptor) {
 		IFile file = context.getDocument().getAdapter(IFile.class);
-		try {
-			System.out.println(context.getDocument().getLineOfOffset(context.getOffset()));
-		} catch (BadLocationException e) {
-			e.printStackTrace();
-		}
 		FaugjsConfigContext fcntxt = JsonUiIXtextEditorCallback.getObj(file.getProject().getName());
 		if(fcntxt!=null) {
 			String key = null;
@@ -84,8 +79,11 @@ public abstract class AbstractFaugProposalProvider extends TerminalsProposalProv
 			}
 			if((key!=null && fp.matches(key) && value.length()>=3) || (value.startsWith("func:") && value.length()>=8)) {
 				String sv = value.startsWith("func:")?value.substring(5):value;
-				Set<String> matched = JsonUiIXtextEditorCallback.matchingFuncsOrGvars(sv, null, 1);
+				Set<String> matched = JsonUiIXtextEditorCallback.matchingFuncsOrGvars(sv, null, 1, null);
 				for (String m : matched) {
+					if(m.indexOf("(")!=-1) {
+						m = m.substring(0, m.indexOf("("));
+					}
 					String at = value.startsWith("func:")?("func:"+m):m;
 					ICompletionProposal proposal = doCreateProposal("\""+at, new StyledString(m), null, getPriorityHelper()
 							.getDefaultPriority(), context);
@@ -107,7 +105,7 @@ public abstract class AbstractFaugProposalProvider extends TerminalsProposalProv
 				} else if(sv.startsWith("%%Fg.g(")) {
 					sv = sv.substring(7);
 				}
-				Set<String> matched = JsonUiIXtextEditorCallback.matchingFuncsOrGvars(sv, null, 2);
+				Set<String> matched = JsonUiIXtextEditorCallback.matchingFuncsOrGvars(sv, null, 2, null);
 				for (String m : matched) {
 					String at = m;
 					if(gval!=null) {
@@ -168,7 +166,7 @@ public abstract class AbstractFaugProposalProvider extends TerminalsProposalProv
 					final String fv = value;
 					final String fs = schemaName;
 					fcntxt.parseSchema(schemaName, file).thenAcceptAsync(obj -> {
-						Set<String> matched = JsonUiIXtextEditorCallback.matchingFuncsOrGvars(fv, fs, type);
+						Set<String> matched = JsonUiIXtextEditorCallback.matchingFuncsOrGvars(fv, fs, type, null);
 						for (String m : matched) {
 							ICompletionProposal proposal = doCreateProposal("\""+m, new StyledString(m), null, getPriorityHelper()
 									.getDefaultPriority(), context);
@@ -184,7 +182,7 @@ public abstract class AbstractFaugProposalProvider extends TerminalsProposalProv
 						}
 					});
 				} else {
-					Set<String> matched = JsonUiIXtextEditorCallback.matchingFuncsOrGvars(value, schemaName, type);
+					Set<String> matched = JsonUiIXtextEditorCallback.matchingFuncsOrGvars(value, schemaName, type, null);
 					for (String m : matched) {
 						ICompletionProposal proposal = doCreateProposal("\""+m, new StyledString(m), null, getPriorityHelper()
 								.getDefaultPriority(), context);

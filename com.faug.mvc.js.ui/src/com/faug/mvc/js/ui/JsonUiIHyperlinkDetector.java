@@ -1,5 +1,8 @@
 package com.faug.mvc.js.ui;
 
+import java.net.URL;
+import java.util.UUID;
+
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.Path;
 import org.eclipse.jface.text.BadLocationException;
@@ -13,6 +16,7 @@ import org.eclipse.ui.IEditorPart;
 import org.eclipse.ui.IWorkbenchPage;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
+import org.eclipse.ui.browser.IWebBrowser;
 import org.eclipse.ui.ide.IDE;
 import org.eclipse.ui.texteditor.ITextEditor;
 import org.eclipse.xtext.ui.editor.model.IXtextDocument;
@@ -144,7 +148,7 @@ public class JsonUiIHyperlinkDetector implements IHyperlinkDetector {
 				Matcher m = filePat.matcher(candidate);
 				if (m.find()) {
 					flink.fUrlRegion = new Region(flink.fUrlRegion.getOffset() + m.start(1),
-							m.group(1).length() + m.group(2).length());
+							m.group(1).length() + m.group(2).length() + 1);
 					flink.file = file.getWorkspace().getRoot()
 							.getFile(Path.fromOSString(cntxt.path + m.group(1) + "." + m.group(2)));
 				} else {
@@ -235,24 +239,52 @@ public class JsonUiIHyperlinkDetector implements IHyperlinkDetector {
 				srchTxt = "(function[\t ]+)(" + fnName + ")[\t ]*\\(";
 			} else if (gvName != null) {
 				if (!configGv) {
-					srchTxt = "(Fg|Faug)\\.(ag|addGlobalVar)[\t ]*\\([\t ]*(['\"]+)" + gvName;
+					srchTxt = "(Fg|Faug)[\t ]*\\.[\t ]*(ag|addGlobalVar)[\t ]*\\([\t ]*['\"]+(" + gvName + ")";
 				} else {
 					srchTxt = "(\"" + gvName + "\"[\t ]*:[\t ]*)";
 				}
 			}
 			try {
-				IEditorPart part = IDE.openEditor(page, file);
-				part.setFocus();
+				int start = 0, length = 0;
+				String scDat = null;
 				if (srchTxt != null) {
-					String scDat = JsonUiIXtextEditorCallback.readFileContents(file);
+					scDat = JsonUiIXtextEditorCallback.readFileContents(file);
 					Pattern p = Pattern.compile(srchTxt);
 					Matcher m = p.matcher(scDat);
 					if (m.find()) {
-						if (m.groupCount() == 2) {
-							((ITextEditor) part).selectAndReveal(m.start() + m.group(1).length(), m.group(2).length());
+						if (m.groupCount() == 3 && !configGv) {
+							start = m.start(3);
+							length = m.group(3).length();
+						} else if (m.groupCount() == 2) {
+							start = m.start(2);
+							length = m.group(2).length();
 						} else {
-							((ITextEditor) part).selectAndReveal(m.start(), 0);
+							start = m.start();
+							length = 0;
 						}
+					}
+				}
+				if(file.getName().endsWith("html") || file.getName().endsWith("js")) {
+					String extraArgs = "";
+					if(start>0) {
+						String[] lines = scDat.substring(0, start).split("\n");
+						int linenum = lines.length;
+						int colnums = lines[linenum-1].length();
+						int colnume = lines[linenum-1].length() + length;
+						extraArgs = "&line=" + linenum + "&cols=" + colnums + "&cole=" + colnume;
+					}
+					IWebBrowser browser = PlatformUI.getWorkbench().getBrowserSupport().createBrowser(UUID.randomUUID().toString());
+					browser.openURL(new URL("http://localhost:23900/static/index.html?file="+file.getRawLocation().toOSString()+extraArgs));
+					//System.out.println("http://localhost:23900/static/index.html?file="+file.getRawLocation().toOSString()+extraArgs);
+				} else {
+					IEditorPart part = IDE.openEditor(page, file);
+					part.setFocus();
+					if (start>0) {
+						/*if (grpcnt == 2) {
+							((ITextEditor) part).selectAndReveal(start, length);
+						} else {*/
+							((ITextEditor) part).selectAndReveal(start, 0);
+						//}
 					}
 				}
 			} catch (Exception e) {
