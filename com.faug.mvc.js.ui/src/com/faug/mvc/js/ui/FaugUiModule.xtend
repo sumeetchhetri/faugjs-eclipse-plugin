@@ -6,6 +6,8 @@ package com.faug.mvc.js.ui
 import org.eclipse.jface.text.hyperlink.IHyperlinkDetector
 import org.eclipse.xtend.lib.annotations.FinalFieldsConstructor
 import org.eclipse.xtext.ui.editor.IXtextEditorCallback
+import org.eclipse.xtext.ui.resource.IResourceSetProvider
+import org.eclipse.xtext.ui.resource.SimpleResourceSetProvider
 
 /**
  * Use this class to register components to be used within the Eclipse IDE.
@@ -18,4 +20,7 @@ class FaugUiModule extends AbstractFaugUiModule {
     override Class<? extends IXtextEditorCallback> bindIXtextEditorCallback() {
         return JsonUiIXtextEditorCallback;
     }
+    override Class<? extends IResourceSetProvider> bindIResourceSetProvider() {
+		return SimpleResourceSetProvider;
+	}
 }

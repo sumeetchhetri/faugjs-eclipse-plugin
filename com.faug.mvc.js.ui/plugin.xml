@@ -404,13 +404,25 @@
 		</menuContribution>
 	</extension>
 	<extension point="org.eclipse.ui.preferencePages">
-		<page
+		<!--page
 			category="com.faug.mvc.js.Faug"
 			class="com.faug.mvc.js.ui.FaugExecutableExtensionFactory:org.eclipse.xtext.ui.refactoring.ui.RefactoringPreferencePage"
 			id="com.faug.mvc.js.Faug.refactoring"
 			name="Refactoring">
 			<keywordReference id="com.faug.mvc.js.ui.keyword_Faug"/>
+		</page-->
+		<page
+			category="com.faug.mvc.js.Faug"
+			class="com.faug.mvc.js.ui.FaugExecutableExtensionFactory:com.faug.mvc.js.ui.FaugJsPreferencePage"
+			id="com.faug.mvc.js.Faug.refactoring"
+			name="Settings">
+			<keywordReference id="com.faug.mvc.js.ui.keyword_Faug"/>
 		</page>
+	</extension>
+	<extension point="org.eclipse.core.runtime.preferences">
+		<initializer
+	        class="com.faug.mvc.js.ui.FaugJsPreferences">
+	    </initializer>
 	</extension>
 	<extension point="org.eclipse.compare.contentViewers">
 		<viewer id="com.faug.mvc.js.Faug.compare.contentViewers"
@@ -442,4 +454,8 @@
 			type="text">
 		</fileTypes>
 	</extension>
+ <extension
+       point="org.eclipse.ui.startup">
+       <startup class="com.faug.mvc.js.ui.FaugExecutableExtensionFactory:com.faug.mvc.js.ui.StartupClass"/>
+ </extension>
 </plugin>

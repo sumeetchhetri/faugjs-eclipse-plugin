@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <script src="jquery-2.1.4.min.js"></script>
+        <script src="ace.js" type="text/javascript" charset="utf-8"></script>
+        <script src="ext-language_tools.js"></script>
+        <script src="api.js"></script>
+        <script src="jslint.js"></script>
+        <title id="title">Faug Js Editor</title>
+        <style type="text/css" media="screen">
+            #editor { 
+                position: absolute;
+                top: 0;
+                right: 0;
+                bottom: 0;
+                left: 0;
+            }
+        </style>
+    </head>
+    <body>
+        <div id="editor" data-dirty="false">
+        </div>
+        <script>
+            String.prototype.endsWith = function(suffix) {
+                return this.indexOf(suffix, this.length - suffix.length) !== -1;
+            };
+            function getUrlParameterByName(name) {
+                var match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+                return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+            };
+            var editor;
+
+            $(document).ready(function() {
+                var file = getUrlParameterByName("file");
+                var linenum = getUrlParameterByName("line");
+                var colnums = getUrlParameterByName("cols");
+                var colnume = getUrlParameterByName("cole");
+                var params = getUrlParameterByName("params");
+                var dojslint = getUrlParameterByName("jslint");
+                var project = getUrlParameterByName("project");
+                var bid = getUrlParameterByName("bid");
+                $("#title").text(file.substring(file.lastIndexOf("/")+1));
+                $("#title").attr('text', file);
+
+                function saveFile() {
+                    editor.session.clearAnnotations();
+                    $("#title").text(file.substring(file.lastIndexOf("/")+1));
+                    $.ajax({
+                        type: "POST",
+                        url: "/push/save?file="+file,
+                        data: JSON.stringify({file: file, contents: editor.getValue()}),
+                        contentType: "application/json"
+                    })
+                    .done(function() {
+                        $("#title").text(file.substring(file.lastIndexOf("/")+1));
+                    })
+                    .fail(function() {
+                        alert("Error saving file");
+                    });
+                }
+
+                $.ajax({
+                    type: "POST",
+                    url: "/pull/fetch",
+                    data: file,
+                    contentType: "text/plain"
+                })
+                .done(function(content, status, xhr) {
+                    if(xhr.responseJSON) {
+                        alert("Error Loading file: " + xhr.responseJSON.error);
+                        return;
+                    }
+                    var Range = ace.require("ace/range").Range;
+                    $("#editor").text(content);
+                    editor = ace.edit("editor");
+                    editor.getSession().setUseWorker(false);
+                    editor.setTheme("ace/theme/eclipse");
+                    if(file.endsWith(".html")) {
+                        editor.session.setMode("ace/mode/fjs");
+                    } else if(file.endsWith(".js")) {
+                        editor.session.setMode("ace/mode/javascript");
+                    }
+
+                    editor.commands.addCommand({
+                        name: 'save',
+                        bindKey: {win: "Ctrl-S", mac: "Cmd-S"},
+                        exec: function(editor) {
+                            if(file.endsWith(".html")) {
+                                var to = {};
+                                if(params) {
+                                    var tp = params.split(",");
+                                    for(var i=0;i<tp.length;++i) {
+                                        to[tp[i]] = null;
+                                    }
+                                }
+                                var code = templatize(editor.getValue(), to, true);
+                                if(dojslint==="true") {
+                                    var options = {"browser":true,"for":true,"getset":true,"long":true,"single":true,"this":true,"white":true};
+                                    var result = jslint(code, options, ( code === "" ? undefined : code.split("\n") ));
+                                    if(result.warnings && result.warnings.length>0) {
+                                        var lns = code.split("\n");
+                                        for(var i=0;i<result.warnings.length;i++) {
+                                            $("#title").text("* "+file.substring(file.lastIndexOf("/")+1));
+                                            var l = result.warnings[i].line - 1;
+                                            var tx = result.warnings[i].message;
+                                            if(l>0 && lns[l-1].indexOf("<!-- debug -->")!=-1) {
+                                                l -= 1;
+                                            } else if(l==lns.length) {
+                                                tx = "Compilation Error " + tx + " or (maybe unclosed bracket)";
+                                                l = editor.session.getLength() - 1;
+                                            } else if(lns[l-1].indexOf('____r_____')!=-1) {
+                                                try {
+                                                    eval('function ______a____(){var ____r_____;'+lns[l-1]+"}");
+                                                } catch(e) {
+                                                    l -= 1;
+                                                }
+                                            }
+                                            editor.session.setAnnotations([{row:l, column: 0, text: tx, type: "error"}]); 
+                                            //alert("Error at line " + (resp.num-2) + " source " + resp.src);
+                                        }
+                                        return;
+                                    } else {
+                                        saveFile();
+                                    }
+                                }
+                                $.ajax({
+                                    type: "POST",
+                                    url: "/push/compile?file="+file+"&bid"+bid,
+                                    data: JSON.stringify({file: file, contents: code}),
+                                    contentType: "application/json"
+                                })
+                                .done(function(resp) {
+                                    if(!resp.status) {
+                                        $("#title").text("* "+file.substring(file.lastIndexOf("/")+1));
+                                        var l = (resp.num - 2);
+                                        var tx = "Compilation Error";
+                                        if(l>0 && resp.src.indexOf("<!-- debug -->")!=-1) {
+                                            l -= 1;
+                                        } else if(resp.num==code.split('\n').length) {
+                                            tx = "Compilation Error, unclosed bracket";
+                                            l = editor.session.getLength() - 1;
+                                        } else if(resp.src.indexOf('____r_____')!=-1) {
+                                            try {
+                                                eval('function ______a____(){var ____r_____;'+resp.src+"}");
+                                            } catch(e) {
+                                                l -= 1;
+                                            }
+                                        }
+                                        editor.session.setAnnotations([{row:l, column: 0, text: tx, type:"error"}]); 
+                                        //alert("Error at line " + (resp.num-2) + " source " + resp.src);
+                                    } else {
+                                        saveFile();
+                                    }
+                                })
+                                .fail(function(xhr, resp) {
+                                    alert("Error compiling file");
+                                });
+                            } else {
+                                $.ajax({
+                                    type: "POST",
+                                    url: "/push/save?file="+file+"&bid"+bid,
+                                    data: editor.getValue(),
+                                    contentType: "text/plain"
+                                })
+                                .done(function() {
+                                    if(xhr.responseJSON) {
+                                        alert("Error Saving file: " + xhr.responseJSON.error);
+                                        return;
+                                    }
+                                    $("#title").text(file.substring(file.lastIndexOf("/")+1));
+                                })
+                                .fail(function() {
+                                    alert("Error saving file");
+                                });
+                            }
+                        }
+                    });
+                    editor.getSession().on('change', function() {
+                        $("#title").text("* "+file.substring(file.lastIndexOf("/")+1));
+                        if($("#editor").attr('data-dirty')=="false") {
+                            $.ajax({
+                                type: "POST",
+                                url: "/push/title?bid="+bid
+                            })
+                            .done(function() {
+                                
+                            });
+                            $("#editor").attr('data-dirty', 'true');
+                        }
+                    });
+
+                    var langTools = ace.require("ace/ext/language_tools");
+                    editor.setOptions({
+                        enableBasicAutocompletion: true,
+                        enableLiveAutocompletion: true,
+                        enableSnippets: false
+                    });
+                    var funcCompleter = {
+                        identifierRegexps: [/[a-zA-Z_0-9\.\$\-\u00A2-\uFFFF\(\)]/],
+                        getCompletions: function(editor, session, pos, prefix, callback) {
+                            var cl = editor.session.getLine(pos.row);
+                            var isfunc = true;
+                            if(/(.*)(Fg|Faug)\.(g|getGlobalVar)\((.*)/.test(prefix)) {
+                                isfunc = false;
+                                prefix = prefix.substring(prefix.indexOf("(")+1);
+                                //if(prefix.endsWith(")")) {
+
+                                //}
+                            } else if(!/[a-zA-Z_0-9\.\$\-\u00A2-\uFFFF\(\)]/.test(prefix)) {
+                                callback(null, []); return;
+                            }
+                            if (isfunc && prefix.length < 3) { callback(null, []); return; }
+                            var text1 = "";
+                            if(prefix.indexOf(".")!=-1) {
+                                text1 = prefix.split(".")[0];
+                                prefix = prefix.split(".")[1]; 
+                            }
+                            var url = "/pull/complete-func?text="+prefix+"&text1="+text1;
+                            if(!isfunc) {
+                                url = "/pull/complete-gvar?text="+prefix;
+                            }
+                            url += "&project="+project;
+                            $.ajax({
+                                type: "POST",
+                                url: url,
+                                data: file,
+                                contentType: "text/plain"
+                            })
+                            .done(function(wordList) {
+                                if(xhr.responseJSON) {
+                                    //alert("Error Eftching file: " + xhr.responseJSON.error);
+                                    callback(null, []); 
+                                    return;
+                                }
+                                callback(null, {
+                                    matches: wordList.map(function(ea)  {           
+                                        return {caption: ea, value: isfunc?(ea):('"'+ea+'"'),
+                                            score:100, meta: isfunc?"function":"global-var"}
+                                    }),
+                                    prefix: prefix,
+                                    finished: true
+                                });
+                            })
+                            .fail(function() {
+                            });
+                        }
+                    }
+                    langTools.addCompleter(funcCompleter);
+
+                    setTimeout(function() {
+                        if(linenum) {
+                            editor.gotoLine(linenum);
+                            if(colnums) {
+                                editor.selection.setRange(new Range(linenum-1, colnums, linenum-1, colnume));
+                            }
+                        }
+                    }, 500);
+                })
+                .fail(function() {
+                });
+            });
+        </script>
+    </body>
+</html>

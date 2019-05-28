@@ -1,7 +1,11 @@
 package com.faug.mvc.js.ui;
 
+import java.lang.ref.WeakReference;
 import java.net.URL;
-import java.util.UUID;
+import java.net.URLEncoder;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.Path;
@@ -22,12 +26,14 @@ import org.eclipse.ui.texteditor.ITextEditor;
 import org.eclipse.xtext.ui.editor.model.IXtextDocument;
 
 import com.faug.mvc.js.ui.JsonUiIXtextEditorCallback.FaugjsConfigContext;
+import com.faug.mvc.js.ui.internal.JsActivator;
 import com.google.re2j.Matcher;
 import com.google.re2j.Pattern;
 
 public class JsonUiIHyperlinkDetector implements IHyperlinkDetector {
 
-	Pattern filePat = Pattern.compile("\"([^\"]+)\\.(json|js|html)\"");
+	Pattern filePat1 = Pattern.compile("\"(.*)\"[\\t ]*:[\\t ]*\"([^\"]+)\\.(json|js|html)\"");
+	Pattern filePat2 = Pattern.compile("\"([^\"]+)\\.(json|js|html)\"");
 	Pattern opPat = Pattern.compile("\"op\"[\t ]*:[\t ]*\"([^\"]+)\"");
 	public static final Pattern snPat = Pattern.compile("\"schemaName\"[\t ]*:[\t ]*\"([^\"]+)\"");
 	Pattern vnPat = Pattern.compile("\"viewerId\"[\t ]*:[\t ]*\"([^\"]+)\"");
@@ -145,14 +151,27 @@ public class JsonUiIHyperlinkDetector implements IHyperlinkDetector {
 					return null;
 				}
 			} else {
-				Matcher m = filePat.matcher(candidate);
+				Matcher m = filePat1.matcher(candidate);
 				if (m.find()) {
-					flink.fUrlRegion = new Region(flink.fUrlRegion.getOffset() + m.start(1),
-							m.group(1).length() + m.group(2).length() + 1);
+					flink.fUrlRegion = new Region(flink.fUrlRegion.getOffset() + m.start(2),
+							m.group(2).length() + m.group(3).length() + 1);
 					flink.file = file.getWorkspace().getRoot()
-							.getFile(Path.fromOSString(cntxt.path + m.group(1) + "." + m.group(2)));
+							.getFile(Path.fromOSString(cntxt.path + m.group(2) + "." + m.group(3)));
+					if(m.group(1).equalsIgnoreCase("templateFile") || m.group(1).equalsIgnoreCase("optionTemplateFile")
+							|| m.group(1).equalsIgnoreCase("genericTemplateFile") || m.group(1).equalsIgnoreCase("genericOptionTemplateFile")) {
+						flink.params = "isTransient,elName,rows,selectedVal,details,vars";
+					}
 				} else {
-					return null;
+					m = filePat2.matcher(candidate);
+					if (m.find()) {
+						flink.fUrlRegion = new Region(flink.fUrlRegion.getOffset() + m.start(1),
+								m.group(1).length() + m.group(2).length() + 1);
+						flink.file = file.getWorkspace().getRoot()
+								.getFile(Path.fromOSString(cntxt.path + m.group(1) + "." + m.group(2)));
+						flink.params = cntxt.lookupTemplateParams(flink.file);
+					} else {
+						return null;
+					}
 				}
 			}
 			if (flink.schemaName != null && cntxt.schemaFiles.containsKey(flink.schemaName)) {
@@ -170,7 +189,7 @@ public class JsonUiIHyperlinkDetector implements IHyperlinkDetector {
 					flink.file = file.getWorkspace().getRoot().getFile(Path.fromOSString(cntxt.path + jsf));
 				}
 			}
-			// System.out.println(flink.toString());
+			// JsActivator.info(flink.toString());
 			return new IHyperlink[] { flink };
 		} catch (BadLocationException ex) {
 			return null;
@@ -189,7 +208,7 @@ public class JsonUiIHyperlinkDetector implements IHyperlinkDetector {
 			}
 			return;
 		}
-		// System.out.println("tryin line number " + ln);
+		// JsActivator.info("tryin line number " + ln);
 		if (flink.schemaName != null || ln == oln - 3 || ln == oln + 3)
 			return;
 		deduceSchemaName(flink, document, oln, ln - 1);
@@ -205,6 +224,7 @@ public class JsonUiIHyperlinkDetector implements IHyperlinkDetector {
 		String fnName;
 		String gvName;
 		boolean configGv = true;
+		String params = null;
 
 		public FaugJsLink() {
 		}
@@ -265,17 +285,8 @@ public class JsonUiIHyperlinkDetector implements IHyperlinkDetector {
 					}
 				}
 				if(file.getName().endsWith("html") || file.getName().endsWith("js")) {
-					String extraArgs = "";
-					if(start>0) {
-						String[] lines = scDat.substring(0, start).split("\n");
-						int linenum = lines.length;
-						int colnums = lines[linenum-1].length();
-						int colnume = lines[linenum-1].length() + length;
-						extraArgs = "&line=" + linenum + "&cols=" + colnums + "&cole=" + colnume;
-					}
-					IWebBrowser browser = PlatformUI.getWorkbench().getBrowserSupport().createBrowser(UUID.randomUUID().toString());
-					browser.openURL(new URL("http://localhost:23900/static/index.html?file="+file.getRawLocation().toOSString()+extraArgs));
-					//System.out.println("http://localhost:23900/static/index.html?file="+file.getRawLocation().toOSString()+extraArgs);
+					FaugjsConfigContext cntxt = JsonUiIXtextEditorCallback.getObj(file.getProject().getName());
+					openFaugFile(file, start, length, srchTxt, scDat, cntxt.getRootProjectPath());
 				} else {
 					IEditorPart part = IDE.openEditor(page, file);
 					part.setFocus();
@@ -291,5 +302,56 @@ public class JsonUiIHyperlinkDetector implements IHyperlinkDetector {
 				e.printStackTrace();
 			}
 		}
+	}
+	
+	static Map<String, WeakReference<IWebBrowser>> biMap = new ConcurrentHashMap<>();
+	public static IWebBrowser getBrowser(String bid) {
+		if(bid==null)return null;
+		WeakReference<IWebBrowser> wb = biMap.get(bid);
+		return wb!=null?wb.get():null;
+	}
+	public static void closeAllBrowsers() {
+		for (WeakReference<IWebBrowser> wb : biMap.values()) {
+			if(wb.get()!=null) {
+				wb.get().close();
+			}
+		}
+		biMap.clear();
+	}
+	
+	static AtomicInteger bi = new AtomicInteger(1);
+	public static boolean openFaugFile(IFile file, int start, int length, String params, String scDat, String rootProjectPath) throws Exception {
+		if(file.getName().endsWith("html") || file.getName().endsWith("js")) {
+			String bid = "bid_"+bi.incrementAndGet();
+			String extraArgs = "";
+			if(scDat!=null && start>0) {
+				String[] lines = scDat.substring(0, start).split("\n");
+				int linenum = lines.length;
+				int colnums = lines[linenum-1].length();
+				int colnume = lines[linenum-1].length() + length;
+				extraArgs = "&line=" + linenum + "&cols=" + colnums + "&cole=" + colnume;
+			}
+			extraArgs += "&jslint="+JsActivator.isValidateJslint();
+			extraArgs += "&project="+file.getProject().getName();
+			extraArgs += "&bid="+bid;
+			String url = JsActivator.getAceUrl() + "?file="+URLEncoder.encode(file.getRawLocation().toOSString(), "UTF-8")+extraArgs;
+			if(file.getName().endsWith("html") && params!=null) {
+				url += "&params="+params;
+			}
+			String currfile = file.getRawLocation().toOSString().substring(rootProjectPath.length());
+			String bn = currfile.indexOf("/")!=-1?currfile.substring(currfile.lastIndexOf("/")+1):currfile;
+			if(bn.indexOf("\\")!=-1) {
+				bn = bn.replace('\\', '/');
+			}
+			if(currfile.indexOf("\\")!=-1) {
+				currfile = currfile.replace('\\', '/');
+			}
+			IWebBrowser browser = PlatformUI.getWorkbench().getBrowserSupport().createBrowser(0, bid, bn, currfile);
+			browser.openURL(new URL(url));
+			biMap.put(bid, new WeakReference<IWebBrowser>(browser));
+			//JsActivator.info(url);
+			return true;
+		}
+		return false;
 	}
 }

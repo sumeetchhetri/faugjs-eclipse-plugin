@@ -15,6 +15,8 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import javax.json.Json;
+import javax.json.JsonObjectBuilder;
 import javax.json.stream.JsonParser;
 
 import org.eclipse.core.resources.IFile;
@@ -25,16 +27,19 @@ import org.eclipse.core.runtime.Path;
 import org.eclipse.ui.IEditorReference;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
-import org.eclipse.ui.internal.browser.WebBrowserEditorInput;
 import org.eclipse.xtext.builder.nature.NatureAddingEditorCallback;
 import org.eclipse.xtext.ui.editor.XtextEditor;
+import org.jsoup.internal.StringUtil;
 import org.leadpony.justify.api.JsonSchema;
 import org.leadpony.justify.api.JsonValidationService;
 import org.leadpony.justify.api.Problem;
 import org.leadpony.justify.api.ProblemHandler;
 import org.mozilla.javascript.CompilerEnvirons;
+import org.mozilla.javascript.Context;
+import org.mozilla.javascript.EvaluatorException;
 import org.mozilla.javascript.Node;
 import org.mozilla.javascript.Parser;
+import org.mozilla.javascript.ScriptableObject;
 import org.mozilla.javascript.Token;
 import org.mozilla.javascript.ast.Assignment;
 import org.mozilla.javascript.ast.AstNode;
@@ -81,7 +86,7 @@ public class JsonUiIXtextEditorCallback extends NatureAddingEditorCallback {
 		Set<String> s = jsFuncNames.keySet();
 		for (String file : s) {
 			for(String fn: jsFuncNames.get(file)) {
-				if(fn.startsWith(func)) {
+				if(fn.startsWith(func+"(")) {
 					return file;
 				}
 			}
@@ -111,10 +116,12 @@ public class JsonUiIXtextEditorCallback extends NatureAddingEditorCallback {
 					addl = jsAliases.get(addl);
 				}
 				Set<String> s = jsSubFunctionNodes.get(addl);
-				for (String fn : s) {
-					if(fn.startsWith(name)) {
-						matched.add(fn);
-						//if(matched.size()==20)return matched;
+				if(s!=null) {
+					for (String fn : s) {
+						if(fn.startsWith(name)) {
+							matched.add(fn);
+							//if(matched.size()==20)return matched;
+						}
 					}
 				}
 			} else {
@@ -167,55 +174,63 @@ public class JsonUiIXtextEditorCallback extends NatureAddingEditorCallback {
 		return matched;
 	}
 
-	private AtomicBoolean foundFjsConfig = new AtomicBoolean(false);
-	
 	@Override
 	public void afterCreatePartControl(XtextEditor editor) {
 		if (fgContexts.size() == 0) {
 			IWorkbenchWindow window = PlatformUI.getWorkbench().getActiveWorkbenchWindow();
 			try {
 				for (IEditorReference ref : window.getActivePage().getEditorReferences()) {
+					/*ref.getEditorInput() instanceof WebBrowserEditorInput*/
 					IFile file = ref.getEditorInput().getAdapter(IFile.class);
 					if(file!=null && file.getName()!=null && file.getName().equals("fjs-config.json")) {
 						handleFaugConfig(file);
 						break;
 					}
 				}
-				for (IEditorReference ref : window.getActivePage().getEditorReferences()) {
-					if(ref.getEditorInput() instanceof WebBrowserEditorInput) {
-						//WebBrowserEditorInput b = (WebBrowserEditorInput)ref.getEditorInput();
-						//System.out.println(b.getURL());
-						IEditorReference[] refs = new IEditorReference[] {ref};
-						window.getActivePage().closeEditors(refs, true);
-					}
-				}
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
 		}
-		try {
-			Thread.sleep(1000);
-			if(!foundFjsConfig.get()) {
-				
-			}
-		} catch (Exception e) {
-		}
+	}
+	
+	@Override
+	public void beforeSetInput(XtextEditor editor) {
 	}
 	
 	@Override
 	public void afterSetInput(XtextEditor editor) {
-		handleFaugConfig(editor.getEditorInput().getAdapter(IFile.class));
+		IFile file = editor.getEditorInput().getAdapter(IFile.class);
+		try {
+			FaugjsConfigContext cntxt = getObj(file.getProject().getName());
+			if(cntxt==null) {
+				String p1 = file.toString().replaceFirst(file.getName(), "").replaceFirst("L/", "");
+				String pp = p1.substring(0, p1.indexOf("/")+1);
+				p1 = p1.substring(p1.indexOf("/"));
+				String p2 = file.getRawLocation().toOSString().replace(file.getName(), "").replaceFirst(p1, "");
+				String rootProjectPath = p2 + "/";
+				handleFaugConfig(file.getWorkspace().getRoot().getFile(Path.fromOSString(pp + "fjs-config.json")));
+				if(JsonUiIHyperlinkDetector.openFaugFile(file, 0, 0, null, null, rootProjectPath)) {
+					editor.close(true);
+				}
+			} else {
+				if(JsonUiIHyperlinkDetector.openFaugFile(file, 0, 0, null, null, cntxt.getRootProjectPath())) {
+					editor.close(true);
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		handleFaugConfig(file);
 	}
 
 	private void handleFaugConfig(final IFile file) {
 		FaugjsConfigContext fcntxt = JsonUiIXtextEditorCallback.getObj(file.getProject().getName());
 		if (file.getName().equals("fjs-config.json")) {
-			foundFjsConfig.set(true);
 			if(fcntxt!=null)return;
 			try {
 				fcntxt = new FaugjsConfigContext();
 				fcntxt.path = file.toString().replaceFirst("fjs-config.json", "");
-				JsActivator.rootProjectPath = file.getRawLocation().toOSString().replace("fjs-config.json", "");
+				fcntxt.rootProjectPath = file.getRawLocation().toOSString().replace("fjs-config.json", "");
 				if (fcntxt.path.startsWith("L/")) {
 					fcntxt.path = fcntxt.path.substring(2);
 				}
@@ -323,7 +338,7 @@ public class JsonUiIXtextEditorCallback extends NatureAddingEditorCallback {
 					}
 				} catch (Throwable e) {
 					e.printStackTrace();
-					// System.out.println("Invalid JSON content");
+					// JsActivator.info("Invalid JSON content");
 				}
 			}
 		}
@@ -339,9 +354,10 @@ public class JsonUiIXtextEditorCallback extends NatureAddingEditorCallback {
 		if (temps != null) {
 			for (Object o : temps) {
 				if (o instanceof String) {
-					cntxt.templateFiles.add(o.toString());
+					cntxt.templateFiles.add(new String[] {o.toString()});
 				} else if (o instanceof List) {
-					cntxt.templateFiles.add(((List<String>) o).get(0));
+					cntxt.templateFiles.add(new String[] {((List<Object>) o).get(0).toString(), 
+							StringUtil.join(((Map<String, Object>)((List<Object>) o).get(1)).keySet(), ",")});
 				}
 			}
 		}
@@ -391,7 +407,7 @@ public class JsonUiIXtextEditorCallback extends NatureAddingEditorCallback {
 				scope.setPrototype(sharedScope);
 				scope.setParentScope(null);
 			    Object result = fct.call(cx, scope, scope, new Object[] {readFileContents(file), true});
-			    //System.out.println(result);
+			    //JsActivator.info(result);
 			    cx.compileFunction(scope, result.toString(), "script", 1, null);
 			    
 			} catch (Exception e) {
@@ -406,14 +422,19 @@ public class JsonUiIXtextEditorCallback extends NatureAddingEditorCallback {
 
 	@Override
 	public void beforeDispose(XtextEditor editor) {
+		try {
+			editor.getEditorInput().getAdapter(IFile.class).deleteMarkers(IMarker.PROBLEM, false, IResource.DEPTH_INFINITE);
+		} catch (CoreException e) {
+		}
 	}
 
 	public static class FaugjsConfigContext {
+		String rootProjectPath;
 		String path;
 		Set<String> configs = new LinkedHashSet<String>();
 		Set<String> moduleFiles = new LinkedHashSet<String>();
 		Map<String, String> schemaFiles = new HashMap<String, String>();
-		Set<String> templateFiles = new LinkedHashSet<String>();
+		Set<String[]> templateFiles = new LinkedHashSet<String[]>();
 		
 		public Set<String> matchinSchemaNames(String name) {
 			Set<String> matched = new LinkedHashSet<String>();
@@ -425,12 +446,26 @@ public class JsonUiIXtextEditorCallback extends NatureAddingEditorCallback {
 			}
 			return matched;
 		}
+		
+		public String getRootProjectPath() {
+			return rootProjectPath;
+		}
 
 		public String lookupSchemaName(IFile file) {
 			String scfn = file.getFullPath().toFile().toString().replace("/" + path, "");
 			for(String fn: schemaFiles.keySet()) {
 				if(schemaFiles.get(fn).equals(scfn)) {
 					return fn;
+				}
+			}
+			return null;
+		}
+		
+		public String lookupTemplateParams(IFile file) {
+			String scfn = file.getFullPath().toFile().toString().replace("/" + path, "");
+			for(String[] fn: templateFiles) {
+				if(fn[0].equals(scfn)) {
+					return fn.length==2?fn[1]:"rows,options";
 				}
 			}
 			return null;
@@ -468,7 +503,7 @@ public class JsonUiIXtextEditorCallback extends NatureAddingEditorCallback {
 						} catch (Exception e) {
 						}
 						
-						System.out.println("Parsed schema file " + schemaName);
+						JsActivator.info("Parsed schema file " + schemaName);
 					}
 					return obj;
 				}
@@ -492,7 +527,7 @@ public class JsonUiIXtextEditorCallback extends NatureAddingEditorCallback {
 			if (node.getType() == Token.FUNCTION && node instanceof FunctionNode) {
 				String fname = null;
 				if(((FunctionNode) node).getName()!=null && !((FunctionNode) node).getName().isEmpty()) {
-					//System.out.println(((FunctionNode) node).getName());
+					//JsActivator.info(((FunctionNode) node).getName());
 					fname = ((FunctionNode) node).getName();
 				}
 				if(depth==0 && fname!=null) {
@@ -524,7 +559,7 @@ public class JsonUiIXtextEditorCallback extends NatureAddingEditorCallback {
 				if(a.getLeft() instanceof PropertyGet && ((PropertyGet)a.getLeft()).getLeft().toSource().equals("this")) {
 					if(!fnames.isEmpty()) {
 						String fname = fnames.peek();
-						//System.out.println(((Name)((PropertyGet)a.getLeft()).getRight()).getIdentifier());
+						//JsActivator.info(((Name)((PropertyGet)a.getLeft()).getRight()).getIdentifier());
 						if(a.getRight() instanceof FunctionNode) {
 							if(((FunctionNode) a.getRight()).getParamCount()>0) {
 								String fn = ((Name)((PropertyGet)a.getLeft()).getRight()).getIdentifier() + "(";
@@ -562,7 +597,7 @@ public class JsonUiIXtextEditorCallback extends NatureAddingEditorCallback {
 		        List<VariableInitializer> vars1 = v.getVariables();
 		        VariableInitializer firstVar = vars1.get(0);
 		        Name firstVarName = (Name) firstVar.getTarget();
-		        //System.out.println(firstVarName.getIdentifier());
+		        //JsActivator.info(firstVarName.getIdentifier());
 		        if(firstVar.getInitializer() instanceof ObjectLiteral) {
 		        	String fname = firstVarName.getIdentifier();
 		        	functionNodes.add(fname);
@@ -571,7 +606,7 @@ public class JsonUiIXtextEditorCallback extends NatureAddingEditorCallback {
 			        List<ObjectProperty> props = obj.getElements();
 					for (ObjectProperty op : props) {
 						if(op.getLeft() instanceof Name) {
-							//System.out.println(((Name)op.getLeft()).getIdentifier());
+							//JsActivator.info(((Name)op.getLeft()).getIdentifier());
 							subFunctionNodes.get(fname).add(((Name)op.getLeft()).getIdentifier());
 						}
 					}
@@ -606,7 +641,7 @@ public class JsonUiIXtextEditorCallback extends NatureAddingEditorCallback {
 						}
 						depth++;
 						((FunctionNode) node1).getBody().visit(this);
-						//System.out.println();
+						//JsActivator.info();
 						depth--;
 						if(depth==0) {
 							fnames.pop();
@@ -634,7 +669,7 @@ public class JsonUiIXtextEditorCallback extends NatureAddingEditorCallback {
 		Matcher m = fgav.matcher(c);
 		while (m.find()) {
 			String gvar = m.group(4);
-			//if(!fv.gvars.contains(gvar))System.out.println(gvar);
+			//if(!fv.gvars.contains(gvar))JsActivator.info(gvar);
 			fv.appgvars.add(gvar);
 		}
 		return fv;
@@ -666,7 +701,7 @@ public class JsonUiIXtextEditorCallback extends NatureAddingEditorCallback {
 	public static ReadContext validateJsonBySchema(ReadContext obj, IFile file, String schemaFile) {
 		if (obj == null)
 			return null;
-		Boolean validate = null;
+		Boolean validate = JsActivator.isValidateJson();
 		try {
 			validate = obj.read("$.validate");
 		} catch (Exception e) {
@@ -726,7 +761,32 @@ public class JsonUiIXtextEditorCallback extends NatureAddingEditorCallback {
 		return obj;
 	}
 	
-	/*public static void main(String[] args) throws FileNotFoundException, IOException {
-		FunctionDeclVisitor fv = parseJsFile(CharStreams.toString(new InputStreamReader(new FileInputStream("/Users/sumeetc/Projects/OhumGitlab/ohumpasng_risl/src/main/resources/public/faugn.js"))));
-	}*/
+	@SuppressWarnings("deprecation")
+	public static String compileTemplateFile(String content) {
+		Context cx = Context.enter();
+		ScriptableObject scope = cx.initStandardObjects();
+		try {
+			cx.compileFunction(scope, content, "script", 1, null);
+			return null;
+		} catch (EvaluatorException e) {
+			JsonObjectBuilder j = Json.createObjectBuilder();
+			j.add("status", false);
+			j.add("num", e.getLineNumber());
+			j.add("src", e.getLineSource());
+			return j.build().toString();
+		} catch (Throwable e) {
+			JsonObjectBuilder j = Json.createObjectBuilder();
+			j.add("status", false);
+			//j.add("num", e.getLineNumber());
+			//j.add("src", e.getLineSource());
+			return j.build().toString();
+		} finally {
+			Context.exit();
+		}
+	}
+	
+	//public static void main(String[] args) throws FileNotFoundException, IOException {
+		//FunctionDeclVisitor fv = parseJsFile(CharStreams.toString(new InputStreamReader(new FileInputStream("/Users/sumeetc/Projects/OhumGitlab/ohumpasng_risl/src/main/resources/public/faugn.js"))));
+		//compileTemplateFile(CharStreams.toString(new FileReader("test1.js")));
+	//}
 }

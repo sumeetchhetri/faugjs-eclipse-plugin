@@ -10,6 +10,8 @@ import org.eclipse.jface.text.hyperlink.IHyperlinkDetector;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.eclipse.xtend.lib.annotations.FinalFieldsConstructor;
 import org.eclipse.xtext.ui.editor.IXtextEditorCallback;
+import org.eclipse.xtext.ui.resource.IResourceSetProvider;
+import org.eclipse.xtext.ui.resource.SimpleResourceSetProvider;
 
 /**
  * Use this class to register components to be used within the Eclipse IDE.
@@ -25,6 +27,11 @@ public class FaugUiModule extends AbstractFaugUiModule {
   @Override
   public Class<? extends IXtextEditorCallback> bindIXtextEditorCallback() {
     return JsonUiIXtextEditorCallback.class;
+  }
+  
+  @Override
+  public Class<? extends IResourceSetProvider> bindIResourceSetProvider() {
+    return SimpleResourceSetProvider.class;
   }
   
   public FaugUiModule(final AbstractUIPlugin plugin) {

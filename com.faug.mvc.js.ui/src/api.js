@@ -1,3 +1,4 @@
+
 function templatize(html, options, retFunc, isVarFromOptions, escH) {
     escH = escH === false ? false : true;
     if (!html) {
@@ -14,6 +15,8 @@ function templatize(html, options, retFunc, isVarFromOptions, escH) {
     var incre = /!!([a-zA-Z0-9_\-\.\s\/()]+)!!/g;
     var varnamere = /^[^a-zA-Z_$]|[^\\w$]/;
 
+    var debugLines = {}
+
     var nhtml = '';
     while (match = mulre.exec(html)) {
         nhtml += html.slice(cursor, match.index);
@@ -21,6 +24,8 @@ function templatize(html, options, retFunc, isVarFromOptions, escH) {
         for (var i = 0; i < htmlines.length; i++) {
             if (htmlines[i].trim() != "") {
                 nhtml += "#" + htmlines[i] + "\n";
+            } else {
+                nhtml += "<!-- debug -->\n";
             }
         }
         cursor = match.index + match[0].length;
@@ -76,21 +81,21 @@ function templatize(html, options, retFunc, isVarFromOptions, escH) {
                     line = jsvartl;
                     if (escH) {
                         if (escnot) {
-                            code += isvar ? (line + '\n') : ('____r_____.push(' + line + ');\n');
+                            code += isvar ? (line + '\n') : ('____r_____.push(' + line + ');');
                         } else {
-                            code += isvar ? (line + '\n') : ('____r_____.push(Fg.eh(' + line + '));\n');
+                            code += isvar ? (line + '\n') : ('____r_____.push(Fg.eh(' + line + '));');
                         }
                     } else {
-                        code += isvar ? (line + '\n') : ('____r_____.push(' + line + ');\n');
+                        code += isvar ? (line + '\n') : ('____r_____.push(' + line + ');');
                     }
                 } else {
                     line = js ? tl : ('"' + tl.replace(/"/g, '\\"') + '"');
-                    code += isvar ? (line + '\n') : ('____r_____.push(' + line + ');\n');
+                    code += isvar ? (line + '\n') : ('____r_____.push(' + line + ');');
                 }
             } else if (incre.test(line)) {
                 code += line + '\n';
             } else {
-                code += isvar ? (line + '\n') : ('____r_____.push(' + line + ');\n');
+                code += isvar ? (line + '\n') : ('____r_____.push(' + line + ');');
             }
             incre.lastIndex = 0;
         }
@@ -100,11 +105,24 @@ function templatize(html, options, retFunc, isVarFromOptions, escH) {
     for (var i = 0; i < htmlines.length; i++) {
         cursor = 0;
         var htm = htmlines[i];
+        var f = false;
+        if(htm.trim()=="") {
+            code += "//debug\n";
+            continue;
+        }
         while (match = re.exec(htm)) {
+            f = true;
             add(htm.slice(cursor, match.index))(match[1], true);
             cursor = match.index + match[0].length;
         }
-        add(htm.substr(cursor, htm.length - cursor));
+        if(f) {
+            add(htm.substr(cursor, htm.length - cursor));
+            code += "\n";
+        } else {
+            add(htm.substr(cursor, htm.length - cursor));
+            if(code[code.length-1]!='\n')
+                code += "\n";
+        }
     }
 
     var addf = function(line, js) {
@@ -127,17 +145,22 @@ function templatize(html, options, retFunc, isVarFromOptions, escH) {
     for (var i = 0; i < htmlines.length; i++) {
         cursor = 0;
         var htm = htmlines[i].trim();
+        var f = false;
         while (match = reExp.exec(htm)) {
+            f = true;
             addf(htm.slice(cursor, match.index), false)(match[1], true);
             cursor = match.index + match[0].length;
         }
-        addf(htm.substr(cursor, htm.length - cursor), false);
+        if(f) addf(htm.substr(cursor, htm.length - cursor), false);
+        else {
+            code += htm + "\n";
+        }
     }
-    var fcode = 'var ____r_____=[];\n';
+    var fcode = 'function _te_____(arg){var ____r_____=[];';
     if (!isVarFromOptions) {
         for ( var k in options) {
             if (options.hasOwnProperty(k)) {
-                fcode += 'var ' + k + '=' + 'arg["' + k + '"];\n';
+                fcode += 'var ' + k + '=' + 'arg["' + k + '"];';
             }
         }
     }
@@ -171,19 +194,24 @@ function templatize(html, options, retFunc, isVarFromOptions, escH) {
     for (var i = 0; i < htmlines.length; i++) {
         cursor = 0;
         var htm = htmlines[i];
+        var f = false;
         while (match = incre.exec(htm)) {
+            f = true;
             addI(htm.slice(cursor, match.index))(match[1], true);
             cursor = match.index + match[0].length;
         }
-        addI(htm.substr(cursor, htm.length - cursor));
+        if(f) addI(htm.substr(cursor, htm.length - cursor));
+        else {
+            code += htm + "\n";
+        }
     }
 
-    code = fcode + code + 'return ____r_____.join("");\n';
+    return fcode + "\n" + code + 'return ____r_____.join("");}';
     //code = code.replace(/[\r\t\n]/g, '');
-    if (retFunc) {
+    /*if (retFunc) {
         return Function.apply(null, ["arg", code]);
     } else {
         return Function.apply(null, ["arg", code]).apply(null, [options]);
     }
-    return code;
+    return code;*/
 }
