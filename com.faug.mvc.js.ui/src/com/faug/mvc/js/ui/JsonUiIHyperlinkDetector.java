@@ -1,6 +1,7 @@
 package com.faug.mvc.js.ui;
 
-import java.lang.ref.WeakReference;
+import java.io.File;
+import java.lang.reflect.Field;
 import java.net.URL;
 import java.net.URLEncoder;
 import java.util.Map;
@@ -9,6 +10,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.eclipse.core.resources.IFile;
 import org.eclipse.core.runtime.Path;
+import org.eclipse.e4.ui.model.application.ui.basic.impl.PartImpl;
+import org.eclipse.jface.dialogs.MessageDialog;
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.IDocument;
 import org.eclipse.jface.text.IRegion;
@@ -17,11 +20,20 @@ import org.eclipse.jface.text.Region;
 import org.eclipse.jface.text.hyperlink.IHyperlink;
 import org.eclipse.jface.text.hyperlink.IHyperlinkDetector;
 import org.eclipse.ui.IEditorPart;
+import org.eclipse.ui.IPartListener;
+import org.eclipse.ui.IPartService;
 import org.eclipse.ui.IWorkbenchPage;
+import org.eclipse.ui.IWorkbenchPart;
+import org.eclipse.ui.IWorkbenchPartSite;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.browser.IWebBrowser;
 import org.eclipse.ui.ide.IDE;
+import org.eclipse.ui.internal.PartSite;
+import org.eclipse.ui.internal.browser.BrowserViewer;
+import org.eclipse.ui.internal.browser.InternalBrowserInstance;
+import org.eclipse.ui.internal.browser.WebBrowserEditor;
+import org.eclipse.ui.part.WorkbenchPart;
 import org.eclipse.ui.texteditor.ITextEditor;
 import org.eclipse.xtext.ui.editor.model.IXtextDocument;
 
@@ -30,6 +42,7 @@ import com.faug.mvc.js.ui.internal.JsActivator;
 import com.google.re2j.Matcher;
 import com.google.re2j.Pattern;
 
+@SuppressWarnings("restriction")
 public class JsonUiIHyperlinkDetector implements IHyperlinkDetector {
 
 	Pattern filePat1 = Pattern.compile("\"(.*)\"[\\t ]*:[\\t ]*\"([^\"]+)\\.(json|js|html)\"");
@@ -286,7 +299,14 @@ public class JsonUiIHyperlinkDetector implements IHyperlinkDetector {
 				}
 				if(file.getName().endsWith("html") || file.getName().endsWith("js")) {
 					FaugjsConfigContext cntxt = JsonUiIXtextEditorCallback.getObj(file.getProject().getName());
-					openFaugFile(file, start, length, srchTxt, scDat, cntxt.getRootProjectPath());
+					int linenum = -1, colnums = -1, colnume = -1;
+					if(scDat!=null && start>0) {
+						String[] lines = scDat.substring(0, start).split("\n");
+						linenum = lines.length;
+						colnums = lines[linenum-1].length();
+						colnume = lines[linenum-1].length() + length;
+					}
+					openFaugFile(file, linenum, colnums, colnume, params, scDat, cntxt.getRootProjectPath());
 				} else {
 					IEditorPart part = IDE.openEditor(page, file);
 					part.setFocus();
@@ -304,36 +324,57 @@ public class JsonUiIHyperlinkDetector implements IHyperlinkDetector {
 		}
 	}
 	
-	static Map<String, WeakReference<IWebBrowser>> biMap = new ConcurrentHashMap<>();
+	static final Map<String, Object[]> biMap = new ConcurrentHashMap<>();
 	public static IWebBrowser getBrowser(String bid) {
-		if(bid==null)return null;
-		WeakReference<IWebBrowser> wb = biMap.get(bid);
-		return wb!=null?wb.get():null;
+		if(bid==null || !biMap.containsKey(bid))return null;
+		Object[] o = biMap.get(bid);
+		return (IWebBrowser)o[0];
+	}
+	public static boolean removeBrowser(String bid) {
+		if(bid==null)return false;
+		if(biMap.remove(bid)!=null) {
+			//System.out.println("removed "+bid);
+			return true;
+		}
+		return false;
 	}
 	public static void closeAllBrowsers() {
-		for (WeakReference<IWebBrowser> wb : biMap.values()) {
-			if(wb.get()!=null) {
-				wb.get().close();
+		for (Object[] o : biMap.values()) {
+			if(o[0]!=null) {
+				((IWebBrowser)o[0]).close();
 			}
 		}
 		biMap.clear();
 	}
+	public static IWebBrowser isEditorAlreadyOpen(String file) {
+		for (Object[] o : biMap.values()) {
+			if(o[0]!=null) {
+				if(o[1].equals(file))return (IWebBrowser)o[0];
+			}
+		}
+		return null;
+	}
 	
 	static AtomicInteger bi = new AtomicInteger(1);
-	public static boolean openFaugFile(IFile file, int start, int length, String params, String scDat, String rootProjectPath) throws Exception {
+	
+	public static boolean openFaugFile(IFile file, int linenum, int colnums, int colnume, String params, String scDat, String rootProjectPath) throws Exception {
 		if(file.getName().endsWith("html") || file.getName().endsWith("js")) {
-			String bid = "bid_"+bi.incrementAndGet();
 			String extraArgs = "";
-			if(scDat!=null && start>0) {
-				String[] lines = scDat.substring(0, start).split("\n");
-				int linenum = lines.length;
-				int colnums = lines[linenum-1].length();
-				int colnume = lines[linenum-1].length() + length;
-				extraArgs = "&line=" + linenum + "&cols=" + colnums + "&cole=" + colnume;
+			String linenums = "", colnumss = "", colnumes = "";
+			if(colnums>-1) {
+				colnumss = String.valueOf(colnums);
 			}
+			if(colnume>-1) {
+				colnumes = String.valueOf(colnume);
+			}
+			if(linenum>-1) {
+				linenums = String.valueOf(linenum);
+				extraArgs = "&line=" + linenums + "&cols=" + colnumss + "&cole=" + colnumes;
+			}
+			
 			extraArgs += "&jslint="+JsActivator.isValidateJslint();
 			extraArgs += "&project="+file.getProject().getName();
-			extraArgs += "&bid="+bid;
+			extraArgs += "&modt="+new File(file.getRawLocation().toOSString()).lastModified();
 			String url = JsActivator.getAceUrl() + "?file="+URLEncoder.encode(file.getRawLocation().toOSString(), "UTF-8")+extraArgs;
 			if(file.getName().endsWith("html") && params!=null) {
 				url += "&params="+params;
@@ -346,9 +387,108 @@ public class JsonUiIHyperlinkDetector implements IHyperlinkDetector {
 			if(currfile.indexOf("\\")!=-1) {
 				currfile = currfile.replace('\\', '/');
 			}
+			if(currfile.startsWith("/")) {
+				currfile = currfile.substring(1);
+			}
+			
+			IWebBrowser wb = isEditorAlreadyOpen(currfile);
+			if(wb!=null) {
+				InternalBrowserInstance ibe = (InternalBrowserInstance)wb;
+				Field f = InternalBrowserInstance.class.getDeclaredField("part");
+				f.setAccessible(true);
+				WebBrowserEditor wbe = (WebBrowserEditor)f.get(ibe);
+				PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage().activate(wbe);
+				f = WebBrowserEditor.class.getDeclaredField("webBrowser");
+				f.setAccessible(true);
+				BrowserViewer bwv = (BrowserViewer)f.get(wbe);
+				if(linenum>-1) {
+					bwv.getBrowser().execute("linenum="+linenums+";colnums="+colnumss+";colnume="+colnumes+";jumpToLineColFunc();");
+				}
+				return true;
+			}
+			
+			String bid = "bid_"+bi.incrementAndGet();
+			url += "&bid="+bid;
 			IWebBrowser browser = PlatformUI.getWorkbench().getBrowserSupport().createBrowser(0, bid, bn, currfile);
+			biMap.put(bid, new Object[] {browser, currfile});
+			//System.out.println("added "+bid + " file " + currfile + " date " + new Date());
 			browser.openURL(new URL(url));
-			biMap.put(bid, new WeakReference<IWebBrowser>(browser));
+			
+			InternalBrowserInstance ibe = (InternalBrowserInstance)browser;
+			Field f = InternalBrowserInstance.class.getDeclaredField("part");
+			f.setAccessible(true);
+			WebBrowserEditor wbe = (WebBrowserEditor)f.get(ibe);
+			
+			IPartService partService = (IPartService) wbe.getEditorSite().getService(IPartService.class);
+			partService.addPartListener(new IPartListener() {
+				@Override
+				public void partOpened(IWorkbenchPart part) {
+				}
+				
+				@Override
+				public void partDeactivated(IWorkbenchPart part) {
+				}
+				
+				@Override
+				public void partClosed(IWorkbenchPart part) {
+					if(part instanceof WebBrowserEditor) {
+						try {
+							Field f = WorkbenchPart.class.getDeclaredField("partSite");
+							f.setAccessible(true);
+							IWorkbenchPartSite wbes = (IWorkbenchPartSite)f.get(wbe);
+							f = PartSite.class.getDeclaredField("model");
+							f.setAccessible(true);
+							PartImpl partImpl = (PartImpl)f.get(wbes);
+							if(!removeBrowser(bid) || !partImpl.isDirty()) {
+								return;
+							}
+							WebBrowserEditor wbe = (WebBrowserEditor)part;
+							f = WebBrowserEditor.class.getDeclaredField("webBrowser");
+							f.setAccessible(true);
+							BrowserViewer bwv = (BrowserViewer)f.get(wbe);
+							boolean result = MessageDialog.openConfirm(wbe.getSite().getShell(), "File changed", "Do you want to save the changes?");
+							if(result) {
+								/*String url = bwv.getBrowser().getUrl();
+								url = url.substring(url.indexOf("?")+1);
+								String[] pars = url.split("&");
+								for (String par : pars) {
+									String[] p = par.split("=");
+									if(p[0].equals("file")) {
+										Object o = bwv.getBrowser().evaluate("return editor.getValue();");
+										if(o!=null && o instanceof String) {
+											BufferedWriter bfw = new BufferedWriter(new FileWriter(URLDecoder.decode(p[1], "UTF-8")));
+											bfw.write(o.toString());
+											bfw.close();
+											break;
+										}
+									}
+								}*/
+								bwv.getBrowser().execute("saveFileFunc();");
+							} else {
+								// Cancel Button selected do something
+							}
+						} catch (Exception e) {
+							e.printStackTrace();
+						}
+					}
+				}
+				
+				@Override
+				public void partBroughtToTop(IWorkbenchPart part) {
+				}
+				
+				@Override
+				public void partActivated(IWorkbenchPart part) {
+				}
+			});
+			
+			//ICommandService cmdService = (ICommandService) wbe.getEditorSite().getService(ICommandService.class);
+			/*InternalBrowserInstance ibe = (InternalBrowserInstance)browser;
+			Field f = InternalBrowserInstance.class.getDeclaredField("part");
+			f.setAccessible(true);
+			WebBrowserEditor wbe = (WebBrowserEditor)f.get(ibe);
+			ICommandService cmdService = (ICommandService) wbe.getEditorSite().getService(ICommandService.class);
+			//wbe.getEditorSite().getActionBars().setGlobalActionHandler(ActionFactory.SAVE.getId(), new );*/
 			//JsActivator.info(url);
 			return true;
 		}

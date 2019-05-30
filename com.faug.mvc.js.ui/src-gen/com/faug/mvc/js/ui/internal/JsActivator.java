@@ -13,7 +13,6 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Field;
-import java.lang.reflect.Method;
 import java.net.Socket;
 import java.nio.file.Paths;
 import java.util.Collections;
@@ -27,10 +26,14 @@ import java.util.zip.ZipInputStream;
 import org.eclipse.core.runtime.IPath;
 import org.eclipse.core.runtime.Platform;
 import org.eclipse.core.runtime.Status;
+import org.eclipse.e4.ui.model.application.ui.basic.impl.PartImpl;
+import org.eclipse.ui.IWorkbenchPartSite;
+import org.eclipse.ui.PlatformUI;
 import org.eclipse.ui.browser.IWebBrowser;
+import org.eclipse.ui.internal.PartSite;
 import org.eclipse.ui.internal.browser.InternalBrowserInstance;
 import org.eclipse.ui.internal.browser.WebBrowserEditor;
-import org.eclipse.ui.part.EditorPart;
+import org.eclipse.ui.part.WorkbenchPart;
 import org.eclipse.ui.plugin.AbstractUIPlugin;
 import org.eclipse.xtext.ui.shared.SharedStateModule;
 import org.eclipse.xtext.util.Modules2;
@@ -98,6 +101,7 @@ public class JsActivator extends AbstractUIPlugin {
 			switch (action) {
 			case "save":
 				String bid = Optional.ofNullable(exchange.getQueryParameters().get("bid")).map(Deque::getFirst).orElse(null);
+				long modt = Long.valueOf(Optional.ofNullable(exchange.getQueryParameters().get("modt")).map(Deque::getFirst).orElse("-1"));
 				exchange.startBlocking();
 				String inp = FileUtils.readFile(exchange.getInputStream());
 				ReadContext rc = JsonPath.parse(inp);
@@ -105,11 +109,18 @@ public class JsActivator extends AbstractUIPlugin {
 				String contents = rc.read("$.contents");
 				info("SAVE requested for file " + file);
 				if(file!=null && contents!=null) {
+					long fcmodt = new File(file).lastModified();
+					if(modt!=fcmodt) {
+						exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, "application/json");
+						exchange.getResponseSender().send("{\"status\": false, \"reload\": true}");
+						info("SAVE skipped (FILE_CHANGED_ON_FILESYSTEM) for file " + file);
+						return;
+					}
 					BufferedWriter bw = new BufferedWriter(new FileWriter(file));
 					bw.write(contents);
 					bw.close();
 					exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, "application/json");
-					exchange.getResponseSender().send("{\"status\": true}");
+					exchange.getResponseSender().send("{\"status\": true, \"modt\": "+new File(file).lastModified()+"}");
 					info("SAVE was successful for file " + file);
 					IWebBrowser wb = JsonUiIHyperlinkDetector.getBrowser(bid);
 					makeBrowserDirtyOrClean(wb, false);
@@ -134,13 +145,8 @@ public class JsActivator extends AbstractUIPlugin {
 						exchange.getResponseSender().send(err);
 						info("COMPILE failed for file " + file + " with err " + err);
 					} else {
-						BufferedWriter bw = new BufferedWriter(new FileWriter(file));
-						bw.write(contents);
-						bw.close();
 						exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, "application/json");
 						exchange.getResponseSender().send("{\"status\": true}");
-						IWebBrowser wb = JsonUiIHyperlinkDetector.getBrowser(bid);
-						makeBrowserDirtyOrClean(wb, false);
 						info("COMPILE was successful for file " + file);
 					}
 					return;
@@ -151,9 +157,10 @@ public class JsActivator extends AbstractUIPlugin {
 				break;
 			case "title":
 				bid = Optional.ofNullable(exchange.getQueryParameters().get("bid")).map(Deque::getFirst).orElse(null);
+				String clean = Optional.ofNullable(exchange.getQueryParameters().get("clean")).map(Deque::getFirst).orElse("0");
 				info("TITLE change requested");
 				IWebBrowser wb = JsonUiIHyperlinkDetector.getBrowser(bid);
-				makeBrowserDirtyOrClean(wb, true);
+				makeBrowserDirtyOrClean(wb, clean.equals("0"));
 				exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, "application/json");
 				exchange.getResponseSender().send("{\"status\": true}");
 				info("TITLE change failed");
@@ -170,15 +177,23 @@ public class JsActivator extends AbstractUIPlugin {
 			Field f = InternalBrowserInstance.class.getDeclaredField("part");
 			f.setAccessible(true);
 			WebBrowserEditor wbe = (WebBrowserEditor)f.get(ibe);
-			Method m = EditorPart.class.getDeclaredMethod("setPartName", new Class[] {String.class});
-			m.setAccessible(true);
-			String title = wbe.getPartName();
-			if(dirty) {
-				title = "* " + title;
-			} else {
-				title = title.substring(title.indexOf(" ")+1);
-			}
-			m.invoke(wbe, new Object[] {title});
+			f = WorkbenchPart.class.getDeclaredField("partSite");
+			f.setAccessible(true);
+			IWorkbenchPartSite wbes = (IWorkbenchPartSite)f.get(wbe);
+			f = PartSite.class.getDeclaredField("model");
+			f.setAccessible(true);
+			PartImpl part = (PartImpl)f.get(wbes);
+			PlatformUI.getWorkbench().getDisplay().asyncExec(new Runnable() {
+				@Override
+				public void run() {
+					try {
+						part.setDirty(dirty);
+					} catch (Exception e) {
+						e.printStackTrace();
+					}
+				}
+			});
+			
 		}
 	}
 	
@@ -198,17 +213,10 @@ public class JsActivator extends AbstractUIPlugin {
 				if(file!=null) {
 					try {
 						String contents = FileUtils.readFile(new FileInputStream(file));
-						if(file.endsWith(".html")) {
-							exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, "text/html");
-							exchange.getResponseSender().send(contents);
-							info("FETCH was successful for file " + file);
-							return;
-						} else if(file.endsWith(".js")) {
-							exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, "application/javascript");
-							exchange.getResponseSender().send(contents);
-							info("FETCH was successful for file " + file);
-							return;
-						}
+						exchange.getResponseHeaders().add(Headers.CONTENT_TYPE, "text/plain");
+						exchange.getResponseSender().send(contents);
+						info("FETCH was successful for file " + file);
+						return;
 					} catch (Exception e) {
 						info("FETCH failed (NOT_FOUND) for file " + file);
 					}
@@ -293,15 +301,27 @@ public class JsActivator extends AbstractUIPlugin {
 		return INSTANCE.getPreferenceStore().getBoolean(FaugJsPreferences.VALIDATE_JSLINT);
 	}
 
+	static int aceEditorPort = 0;
 	public static String getAceUrl() {
-		return "http://localhost:" + getAceEditorPort() + "/static/index.html";
+		return "http://localhost:" + aceEditorPort + "/static/index.html";
 	}
 	
 	@Override
 	public void start(BundleContext context) throws Exception {
 		super.start(context);
 		INSTANCE = this;
-
+		
+		/*IEclipseContext eclipseContext = EclipseContextFactory.getServiceContext(context);
+		IEventBroker eventBroker = eclipseContext.get(IEventBroker.class);
+		EventHandler ev = new EventHandler() {
+			@Override
+			public void handleEvent(Event event) {
+				//Object part = event.getProperty(UIEvents.EventTags.ELEMENT);
+				//boolean tbr =(Boolean) event.getProperty(UIEvents.EventTags.NEW_VALUE);
+			}
+		};
+		eventBroker.subscribe(UIEvents.UIElement.TOPIC_TOBERENDERED, ev);*/
+		
 		Bundle bundle = context.getBundle();
 		IPath stateLoc = Platform.getStateLocation(bundle);
 		File wkFolder = stateLoc.toFile();
@@ -310,36 +330,36 @@ public class JsActivator extends AbstractUIPlugin {
 		}
 		unzipZipFile(JsActivator.class.getResourceAsStream("/ace.zip"), wkFolder.getAbsolutePath());
 		
-		boolean serverPresent = false;
-		try {
-			int p = getAceEditorPort();
-			Socket s = new Socket("localhost", p);
-			s.close();
-			serverPresent = true;
-		} catch (Exception e) {
+		aceEditorPort = getAceEditorPort();
+		while(true) {
+			try {
+				Socket s = new Socket("localhost", aceEditorPort);
+				s.close();
+				Thread.sleep(1000);
+				aceEditorPort++;
+			} catch (Exception e) {
+				break;
+			}
 		}
 		
 		//System.out.println(PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage().getEditorReferences().length);
-		
-		if(!serverPresent) {
-			us = Undertow.builder().addHttpListener(23900, "localhost").setHandler(Handlers.path()
-					.addPrefixPath("/push", Handlers.routing().post("/{action}", new AceApiPushHandler()))
-					.addPrefixPath("/pull", Handlers.routing().post("/{action}", new AceApiPullHandler()))
-					.addPrefixPath("/static/", resource(new PathResourceManager(Paths.get(wkFolder.getAbsolutePath()+File.separator+"ace"), 100)).setDirectoryListingEnabled(false)))
-					.build();
-			server = new Thread(new Runnable() {
-				@Override
-				public void run() {
-					try {
-						info("Started ace server");
-						us.start();
-					} catch (Throwable e) {
-						e.printStackTrace();
-					}
+		us = Undertow.builder().addHttpListener(aceEditorPort, "localhost").setHandler(Handlers.path()
+				.addPrefixPath("/push", Handlers.routing().post("/{action}", new AceApiPushHandler()))
+				.addPrefixPath("/pull", Handlers.routing().post("/{action}", new AceApiPullHandler()))
+				.addPrefixPath("/static/", resource(new PathResourceManager(Paths.get(wkFolder.getAbsolutePath()+File.separator+"ace"), 100)).setDirectoryListingEnabled(false)))
+				.build();
+		server = new Thread(new Runnable() {
+			@Override
+			public void run() {
+				try {
+					info("Started ace server");
+					us.start();
+				} catch (Throwable e) {
+					e.printStackTrace();
 				}
-			});
-			server.start();
-		}
+			}
+		});
+		server.start();
 	}
 
 	@Override

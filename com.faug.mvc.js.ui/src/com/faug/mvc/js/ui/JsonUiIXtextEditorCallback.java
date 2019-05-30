@@ -1,5 +1,6 @@
 package com.faug.mvc.js.ui;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
@@ -24,9 +25,13 @@ import org.eclipse.core.resources.IMarker;
 import org.eclipse.core.resources.IResource;
 import org.eclipse.core.runtime.CoreException;
 import org.eclipse.core.runtime.Path;
+import org.eclipse.jface.viewers.ISelection;
+import org.eclipse.jface.viewers.TreeSelection;
+import org.eclipse.search.internal.ui.text.LineElement;
 import org.eclipse.ui.IEditorReference;
 import org.eclipse.ui.IWorkbenchWindow;
 import org.eclipse.ui.PlatformUI;
+import org.eclipse.ui.internal.PartSite;
 import org.eclipse.xtext.builder.nature.NatureAddingEditorCallback;
 import org.eclipse.xtext.ui.editor.XtextEditor;
 import org.jsoup.internal.StringUtil;
@@ -195,6 +200,8 @@ public class JsonUiIXtextEditorCallback extends NatureAddingEditorCallback {
 	
 	@Override
 	public void beforeSetInput(XtextEditor editor) {
+		IEditorReference ref = (IEditorReference)((PartSite)editor.getSite()).getPartReference();
+		PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage().hideEditor(ref);
 	}
 	
 	@Override
@@ -202,23 +209,59 @@ public class JsonUiIXtextEditorCallback extends NatureAddingEditorCallback {
 		IFile file = editor.getEditorInput().getAdapter(IFile.class);
 		try {
 			FaugjsConfigContext cntxt = getObj(file.getProject().getName());
+			int linenum = -1, colnums = -1, colnume = -1;
+			ISelection sel = PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage().getSelection();
+			if(sel!=null) {
+				if(sel instanceof TreeSelection) {
+					TreeSelection tsel = (TreeSelection)sel;
+					Object el = tsel.getFirstElement();
+					if(el instanceof LineElement) {
+						LineElement lel = (LineElement)el;
+						linenum = lel.getLine();
+						colnums = 0;
+						colnume = lel.getLength();
+					}
+				}
+			}
 			if(cntxt==null) {
 				String p1 = file.toString().replaceFirst(file.getName(), "").replaceFirst("L/", "");
 				String pp = p1.substring(0, p1.indexOf("/")+1);
 				p1 = p1.substring(p1.indexOf("/"));
+				p1 = p1.replace("/", File.separator);
 				String p2 = file.getRawLocation().toOSString().replace(file.getName(), "").replaceFirst(p1, "");
-				String rootProjectPath = p2 + "/";
+				String rootProjectPath = p2 + File.separator;
+				if(!new File(rootProjectPath + "fjs-config.json").exists()) {
+					String[] trpv = p1.split(File.separator);
+					for (String tr : trpv) {
+						if(tr.trim().isEmpty())continue;
+						String fjsFp = rootProjectPath + tr + File.separator + "fjs-config.json";
+						if(new File(fjsFp).exists()) {
+							rootProjectPath = rootProjectPath + tr;
+							pp = pp + tr + "/";
+							break;
+						}
+						rootProjectPath = rootProjectPath + tr + File.separator;
+						pp = pp + tr + "/";
+					}
+				}
 				handleFaugConfig(file.getWorkspace().getRoot().getFile(Path.fromOSString(pp + "fjs-config.json")));
-				if(JsonUiIHyperlinkDetector.openFaugFile(file, 0, 0, null, null, rootProjectPath)) {
+				if(JsonUiIHyperlinkDetector.openFaugFile(file, linenum, colnums, colnume, null, null, rootProjectPath)) {
 					editor.close(true);
+					return;
 				}
 			} else {
-				if(JsonUiIHyperlinkDetector.openFaugFile(file, 0, 0, null, null, cntxt.getRootProjectPath())) {
+				if(JsonUiIHyperlinkDetector.openFaugFile(file, linenum, colnums, colnume, null, null, cntxt.getRootProjectPath())) {
 					editor.close(true);
+					return;
 				}
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
+		}
+		try {
+			IEditorReference ref = (IEditorReference)((PartSite)editor.getSite()).getPartReference();
+			PlatformUI.getWorkbench().getActiveWorkbenchWindow().getActivePage().showEditor(ref);
+		} catch (Exception e) {
 		}
 		handleFaugConfig(file);
 	}
